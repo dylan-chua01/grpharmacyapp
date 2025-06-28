@@ -294,7 +294,7 @@ const Today = () => {
       position: 'relative'
     },
     searchInput: {
-      width: '100%',
+      width: '80%',
       paddingLeft: '40px',
       paddingRight: '16px',
       paddingTop: '10px',
@@ -308,7 +308,7 @@ const Today = () => {
     searchIcon: {
       position: 'absolute',
       left: '12px',
-      top: '50%',
+      top: '65%',
       transform: 'translateY(-50%)',
       color: '#9ca3af',
       width: '18px',
@@ -744,23 +744,6 @@ const Today = () => {
                   onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                 />
               </div>
-
-              <div>
-                <label style={styles.filterLabel}>Filter by Status</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={styles.filterSelect}
-                  onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                >
-                  <option value="all">All Statuses ({statusCounts.all})</option>
-                  <option value="pending">Pending ({statusCounts.pending})</option>
-                  <option value="processing">Processing ({statusCounts.processing})</option>
-                  <option value="completed">Completed ({statusCounts.completed})</option>
-                  <option value="shipped">Shipped ({statusCounts.shipped})</option>
-                </select>
-              </div>
             </div>
           )}
         </div>
@@ -804,11 +787,8 @@ const Today = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Clock style={{ width: '14px', height: '14px', color: '#6b7280' }} />
                   <span style={{ fontSize: '13px', fontWeight: '500' }}>
-                    {formatTime(order.creationDate)}
+                    {order.dateTimeSubmission}
                   </span>
-                </div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                  {order.creationDate ? new Date(order.creationDate).toLocaleDateString() : 'N/A'}
                 </div>
               </td>
               <td style={styles.tableCell}>
@@ -935,7 +915,7 @@ const Today = () => {
             </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>IC Number:</span>
-              <span style={styles.detailValueMono}>{selectedOrder.icNum || 'N/A'}</span>
+              <span style={styles.detailValueMono}>{selectedOrder.icPassNum || 'N/A'}</span>
             </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Passport:</span>

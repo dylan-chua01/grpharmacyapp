@@ -27,7 +27,23 @@ mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
   .catch(err => console.error("❌ MongoDB connection error:", err));
 
 // Define schema + model
-const orderSchema = new mongoose.Schema({}, { collection: 'orders', strict: false });
+const orderSchema = new mongoose.Schema({
+  logs: [
+  {
+    note: { type: String, required: true },
+    category: { type: String, required: true },
+    createdBy: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+],
+pharmacyRemarks: [
+  {
+    remark: { type: String, required: true },
+    createdBy: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  }
+]
+}, { collection: 'orders', strict: false });
 const Order = mongoose.model('Order', orderSchema);
 
 // API endpoints
@@ -218,7 +234,6 @@ app.get('/api/orders/:id', async (req, res) => {
   }
 });
 
-// Endpoint to update order status
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
@@ -256,6 +271,64 @@ app.put('/api/orders/:id/status', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.post('/api/orders/:id/logs', async (req, res) => {
+  const { id } = req.params;
+  const { note, category, createdBy } = req.body;
+
+  if (!note || !category || !createdBy) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const logEntry = {
+      note,
+      category,
+      createdBy,
+      createdAt: new Date(),
+    };
+
+    order.logs.push(logEntry);
+    await order.save();
+
+    res.status(201).json({ message: 'Log added successfully', log: logEntry });
+  } catch (err) {
+    console.error(err); // <- Add this to see error in terminal
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/orders/:id/pharmacy-remarks', async (req, res) => {
+  const { id } = req.params;
+  const { remark, createdBy } = req.body;
+
+  if (!remark || !createdBy) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+
+  try {
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const entry = {
+      remark,
+      createdBy,
+      createdAt: new Date(),
+    };
+
+    order.pharmacyRemarks.push(entry);
+    await order.save();
+
+    res.status(201).json({ message: 'Remark added', remark: entry });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 const port = process.env.PORT || 5050;
 app.listen(port, () => {

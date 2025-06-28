@@ -6,63 +6,78 @@ import '../styles/NavBar.css';
 const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const location = useLocation();
   const [hoveredItem, setHoveredItem] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
-  const menuItems = [
+  useEffect(() => {
+    // Get user role from sessionStorage
+    const role = sessionStorage.getItem('userRole');
+    setUserRole(role);
+  }, []);
+
+  const allMenuItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: Home,
       path: '/dashboard',
-      badge: null
+      badge: null,
+      roles: ['gorush']
     },
     {
       id: 'today',
       label: 'Today',
       icon: Home,
       path: '/today',
-      badge: null
+      badge: null,
+      roles: ['gorush', 'jpmc']
     },
     {
       id: 'customers',
       label: 'All Customers',
       icon: Users,
       path: '/customers',
+      roles: ['gorush']
     },
     {
       id: 'orders',
       label: 'All Orders',
       icon: Package,
-      path: '/orders'
+      path: '/orders',
+      roles: ['gorush', 'jpmc']
     },
     {
       id: 'collection',
       label: 'Collection Dates',
       icon: Package,
-      path: '/collection'
+      path: '/collection',
+      roles: ['gorush', 'jpmc']
     },
-    {
-      id: 'analytics',
-      label: 'Analytics',
-      icon: Activity,
-      path: '/analytics',
-      badge: null
-    }
   ];
 
   const bottomMenuItems = [
     {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      path: '/settings'
-    },
-    {
       id: 'logout',
       label: 'Logout',
       icon: LogOut,
-      path: '/logout'
+      path: '/logout',
+      action: 'logout',
+      roles: ['gorush', 'jpmc']
     }
   ];
+
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => 
+    item.roles.includes(userRole)
+  );
+
+  const filteredBottomMenuItems = bottomMenuItems.filter(item => 
+    item.roles.includes(userRole)
+  );
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('userRole');
+    window.location.reload(); // This will trigger the password modal again
+  };
 
   return (
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -79,7 +94,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           {!isCollapsed && (
             <div className="brand-text">
               <h2>Pharmacy</h2>
-              <span>JPMC Healthcare</span>
+              <span>
+                {userRole === 'jpmc' ? 'JPMC Healthcare' : 'Go Rush System'}
+              </span>
             </div>
           )}
         </div>
@@ -90,6 +107,22 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           {isCollapsed ? <Menu size={18} /> : <X size={18} />}
         </button>
       </div>
+
+      {/* User Role Indicator */}
+      {!isCollapsed && (
+        <div className="user-role-indicator" style={{
+          padding: '0.5rem 1rem',
+          margin: '0.5rem',
+          backgroundColor: userRole === 'jpmc' ? '#fef3c7' : '#dbeafe',
+          borderRadius: '6px',
+          fontSize: '0.75rem',
+          fontWeight: '500',
+          color: userRole === 'jpmc' ? '#92400e' : '#1e40af',
+          textAlign: 'center'
+        }}>
+          {userRole === 'jpmc' ? 'JPMC Access' : 'Go Rush Access'}
+        </div>
+      )}
 
       {/* Main Menu */}
       <div className="menu-section">
@@ -132,9 +165,35 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
 
       {/* Bottom Menu */}
       <div className="bottom-menu">
-        {bottomMenuItems.map((item) => {
+        {filteredBottomMenuItems.map((item) => {
           const Icon = item.icon;
           const isHovered = hoveredItem === item.id;
+          
+          if (item.action === 'logout') {
+            return (
+              <button
+                key={item.id}
+                className={`menu-item ${isHovered ? 'hovered' : ''}`}
+                onMouseEnter={() => setHoveredItem(item.id)}
+                onMouseLeave={() => setHoveredItem(null)}
+                onClick={handleLogout}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  width: '100%',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+              >
+                <div className="menu-item-content">
+                  <div className="icon-wrapper">
+                    <Icon size={20} />
+                  </div>
+                  {!isCollapsed && <span className="label">{item.label}</span>}
+                </div>
+              </button>
+            );
+          }
           
           return (
             <Link
@@ -160,7 +219,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         <div className="sidebar-footer">
           <div className="footer-content">
             <div className="version">v2.1.0</div>
-            <div className="copyright">© 2025 JPMC</div>
+            <div className="copyright">© 2025 {userRole === 'jpmc' ? 'JPMC' : 'Go Rush'}</div>
           </div>
         </div>
       )}

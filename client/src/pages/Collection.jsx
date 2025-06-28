@@ -563,7 +563,7 @@ const CollectionDatesPage = () => {
               </div>
               <div style={styles.infoItem}>
                 <span style={styles.infoLabel}>IC Number</span>
-                <span style={styles.infoValue}>{selectedOrder.icNum || 'N/A'}</span>
+                <span style={styles.infoValue}>{selectedOrder.icPassNum || 'N/A'}</span>
               </div>
               <div style={styles.infoItem}>
                 <span style={styles.infoLabel}>Passport</span>

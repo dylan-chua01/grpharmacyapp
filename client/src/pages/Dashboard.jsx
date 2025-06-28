@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Package, TrendingUp, Calendar, Search, RefreshCw, ArrowLeft, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [orders, setOrders] = useState([]);
@@ -11,6 +12,7 @@ const Dashboard = () => {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   // Fetch data from your API
   useEffect(() => {
@@ -41,6 +43,10 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTrackingNumberClick = (orderId) => {
+  navigate(`/orders/${orderId}`);
   };
 
   const fetchCustomerOrders = async (patientNumber) => {
@@ -646,11 +652,14 @@ const Dashboard = () => {
                         onMouseEnter={(e) => e.target.closest('tr').style.backgroundColor = '#f9fafb'}
                         onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = 'transparent'}
                       >
-                        <td style={styles.tableCell}>
-                          <span style={styles.trackingNumber}>
-                            {order.doTrackingNumber || 'N/A'}
-                          </span>
-                        </td>
+                       <td style={styles.tableCell}>
+  <span 
+    style={styles.trackingNumber}
+    onClick={() => handleTrackingNumberClick(order._id)}
+  >
+    {order.doTrackingNumber || 'N/A'}
+  </span>
+</td> 
                         <td style={styles.tableCell}>
                           {order.creationDate}
                         </td>
