@@ -129,6 +129,10 @@ const CollectionDatesPage = () => {
       background: '#dcfce7',
       color: '#166534'
     },
+    statusDelayed: {
+      background: '#fed7d7',
+      color: '#c53030'
+    },
     statusCancelled: {
       background: '#fee2e2',
       color: '#991b1b'
@@ -377,13 +381,13 @@ const CollectionDatesPage = () => {
 
   const handleUpdateStatus = async (orderId, status) => {
     try {
-      await fetch(`http://localhost:5050/api/orders/${orderId}/collection-date`, {
+      await fetch(`http://localhost:5050/api/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          collectionStatus: status
+          status: status
         }),
       });
       if (selectedDate === 'no-date') {
@@ -420,6 +424,8 @@ const CollectionDatesPage = () => {
         return { ...styles.statusBadge, ...styles.statusReady };
       case 'collected':
         return { ...styles.statusBadge, ...styles.statusCollected };
+      case 'delayed':
+        return { ...styles.statusBadge, ...styles.statusDelayed };
       case 'cancelled':
         return { ...styles.statusBadge, ...styles.statusCancelled };
       default:
@@ -443,8 +449,8 @@ const CollectionDatesPage = () => {
           <Clock size={16} />
           {format(parseISO(order.creationDate), 'h:mm a')}
         </span>
-        <span style={getStatusStyle(order.collectionStatus)}>
-          {order.collectionStatus || 'pending'}
+        <span style={getStatusStyle(order.status)}>
+          {order.status || 'pending'}
         </span>
       </div>
       
@@ -476,13 +482,13 @@ const CollectionDatesPage = () => {
         
         <div style={styles.actions}>
           <select
-            value={order.collectionStatus || 'pending'}
+            value={order.status || 'pending'}
             onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
             style={styles.statusSelect}
           >
             <option value="pending">Pending</option>
-            <option value="ready">Ready</option>
             <option value="collected">Collected</option>
+            <option value="delayed">Delayed</option>
             <option value="cancelled">Cancelled</option>
           </select>
           
@@ -534,8 +540,8 @@ const CollectionDatesPage = () => {
               </div>
               <div style={styles.infoItem}>
                 <span style={styles.infoLabel}>Status</span>
-                <span style={getStatusStyle(selectedOrder.collectionStatus)}>
-                  {selectedOrder.collectionStatus || 'pending'}
+                <span style={getStatusStyle(selectedOrder.status)}>
+                  {selectedOrder.status || 'pending'}
                 </span>
               </div>
             </div>

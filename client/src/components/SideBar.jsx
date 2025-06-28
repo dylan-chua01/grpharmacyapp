@@ -84,27 +84,54 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       {/* Header */}
       <div className="sidebar-header">
         <div className="brand">
-  <div>
-    <img
-      src="/gorushlogo.png"
-      alt="Go Rush Logo"
-      style={{ height: '40px', width: 'auto', objectFit: 'contain', marginTop: '13px' }}
-    />
-  </div>
-  {!isCollapsed && (
-    <div className="brand-text">
-      <span>
-        {userRole === 'jpmc' ? '' : ''}
-      </span>
-    </div>
-  )}
-</div>
+          <div>
+            <img
+              src="/gorushlogo.png"
+              alt="Go Rush Logo"
+              style={{ 
+                height: '40px', 
+                width: 'auto', 
+                objectFit: 'contain', 
+                marginTop: '13px', 
+                marginLeft: isCollapsed ? '8px' : '15px',
+                transition: 'margin-left 0.3s ease'
+              }}
+            />
+          </div>
+          {!isCollapsed && (
+            <div className="brand-text">
+              <span>
+                {userRole === 'jpmc' ? '' : ''}
+              </span>
+            </div>
+          )}
+        </div>
 
         <button 
           className="toggle-btn"
           onClick={() => setIsCollapsed(!isCollapsed)}
+          style={{
+            // Ensure the button is always clickable
+            minWidth: '40px',
+            minHeight: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            borderRadius: '6px',
+            transition: 'background-color 0.2s ease',
+            marginRight: isCollapsed ? '8px' : '16px'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'transparent';
+          }}
         >
-          {isCollapsed ? <Menu size={18} /> : <X size={18} />}
+          {isCollapsed ? <Menu size={20} /> : <X size={20} />}
         </button>
       </div>
 
@@ -139,6 +166,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
                 className={`menu-item ${isActive ? 'active' : ''} ${isHovered ? 'hovered' : ''}`}
                 onMouseEnter={() => setHoveredItem(item.id)}
                 onMouseLeave={() => setHoveredItem(null)}
+                title={isCollapsed ? item.label : ''} // Show tooltip when collapsed
               >
                 <div className="menu-item-content">
                   <div className="icon-wrapper">
@@ -177,6 +205,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
                 onMouseEnter={() => setHoveredItem(item.id)}
                 onMouseLeave={() => setHoveredItem(null)}
                 onClick={handleLogout}
+                title={isCollapsed ? item.label : ''} // Show tooltip when collapsed
                 style={{
                   background: 'none',
                   border: 'none',
@@ -202,6 +231,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
               className={`menu-item ${isHovered ? 'hovered' : ''}`}
               onMouseEnter={() => setHoveredItem(item.id)}
               onMouseLeave={() => setHoveredItem(null)}
+              title={isCollapsed ? item.label : ''} // Show tooltip when collapsed
             >
               <div className="menu-item-content">
                 <div className="icon-wrapper">
@@ -218,7 +248,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       {!isCollapsed && (
         <div className="sidebar-footer">
           <div className="footer-content">
-            <div className="version">v2.1.0</div>
+            <div className="version">v1.0.0</div>
             <div className="copyright">© 2025 {userRole === 'jpmc' ? 'JPMC' : 'Go Rush'}</div>
           </div>
         </div>

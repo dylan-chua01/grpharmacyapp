@@ -88,8 +88,10 @@ const Dashboard = () => {
   // Calculate dashboard metrics
   const totalOrders = orders.length;
   const totalCustomers = customers.length;
-  const completedOrders = orders.filter(order => order.status === 'completed').length;
-  const pendingOrders = orders.filter(order => order.status === 'pending').length;
+  const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+const todaysParcels = orders.filter(order => 
+  order.collectionDate && order.collectionDate.split('T')[0] === today
+).length;
 
   // Filter customers based on search
   const filteredCustomers = customers.filter(customer =>
@@ -266,7 +268,7 @@ const Dashboard = () => {
       position: 'relative'
     },
     searchInput: {
-      width: '100%',
+      width: '80%',
       paddingLeft: '40px',
       paddingRight: '16px',
       paddingTop: '8px',
@@ -424,10 +426,6 @@ const Dashboard = () => {
       backgroundColor: '#dcfce7',
       color: '#166534'
     },
-    statusPending: {
-      backgroundColor: '#fef3c7',
-      color: '#92400e'
-    },
     statusProcessing: {
       backgroundColor: '#dbeafe',
       color: '#1e40af'
@@ -552,22 +550,6 @@ const Dashboard = () => {
       color: '#059669',
       fontWeight: '600',
       textAlign: 'right'
-    }
-  };
-
-  const getStatusStyle = (status) => {
-    const baseStyle = styles.statusBadge;
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return { ...baseStyle, ...styles.statusCompleted };
-      case 'pending':
-        return { ...baseStyle, ...styles.statusPending };
-      case 'processing':
-        return { ...baseStyle, ...styles.statusProcessing };
-      case 'shipped':
-        return { ...baseStyle, ...styles.statusShipped };
-      default:
-        return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#6b7280' };
     }
   };
 
@@ -758,28 +740,16 @@ const Dashboard = () => {
           </div>
 
           <div style={styles.metricCard}>
-            <div style={styles.metricContent}>
-              <div>
-                <p style={styles.metricLabel}>Completed Orders</p>
-                <p style={{...styles.metricValue, color: '#16a34a'}}>{completedOrders}</p>
-              </div>
-              <div style={{...styles.metricIcon, backgroundColor: '#dcfce7'}}>
-                <TrendingUp style={{ width: '24px', height: '24px', color: '#16a34a' }} />
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.metricCard}>
-            <div style={styles.metricContent}>
-              <div>
-                <p style={styles.metricLabel}>Pending Orders</p>
-                <p style={{...styles.metricValue, color: '#eab308'}}>{pendingOrders}</p>
-              </div>
-              <div style={{...styles.metricIcon, backgroundColor: '#fef3c7'}}>
-                <Calendar style={{ width: '24px', height: '24px', color: '#eab308' }} />
-              </div>
-            </div>
-          </div>
+  <div style={styles.metricContent}>
+    <div>
+      <p style={styles.metricLabel}>Today's Collections</p>
+      <p style={{...styles.metricValue, color: '#2563eb'}}>{todaysParcels}</p>
+    </div>
+    <div style={{...styles.metricIcon, backgroundColor: '#dbeafe'}}>
+      <Calendar style={{ width: '24px', height: '24px', color: '#2563eb' }} />
+    </div>
+  </div>
+</div>
         </div>
 
         <div style={styles.customersGrid}>
