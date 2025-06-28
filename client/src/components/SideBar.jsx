@@ -84,22 +84,22 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       {/* Header */}
       <div className="sidebar-header">
         <div className="brand">
-          <div className="brand-icon">
-            <div className="pharmacy-icon">
-              <div className="pill pill-1"></div>
-              <div className="pill pill-2"></div>
-              <div className="cross">+</div>
-            </div>
-          </div>
-          {!isCollapsed && (
-            <div className="brand-text">
-              <h2>Pharmacy</h2>
-              <span>
-                {userRole === 'jpmc' ? 'JPMC Healthcare' : 'Go Rush System'}
-              </span>
-            </div>
-          )}
-        </div>
+  <div>
+    <img
+      src="/gorushlogo.png"
+      alt="Go Rush Logo"
+      style={{ height: '40px', width: 'auto', objectFit: 'contain', marginTop: '13px' }}
+    />
+  </div>
+  {!isCollapsed && (
+    <div className="brand-text">
+      <span>
+        {userRole === 'jpmc' ? '' : ''}
+      </span>
+    </div>
+  )}
+</div>
+
         <button 
           className="toggle-btn"
           onClick={() => setIsCollapsed(!isCollapsed)}
