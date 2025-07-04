@@ -1,0 +1,387 @@
+  // Styles
+  const styles = {
+    container: {
+      maxWidth: '1200px',
+      margin: '0 auto',
+      padding: '20px',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    },
+    title: {
+      fontSize: '24px',
+      marginBottom: '20px',
+      color: '#111827',
+      fontWeight: '600'
+    },
+    selectPrompt: {
+      textAlign: 'center',
+      padding: '40px 20px',
+      background: 'white',
+      borderRadius: '10px',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+      marginBottom: '20px'
+    },
+    promptText: {
+      fontSize: '18px',
+      color: '#666',
+      marginBottom: '20px'
+    },
+    dateSelector: {
+      display: 'flex',
+      gap: '10px',
+      marginBottom: '20px',
+      overflowX: 'auto',
+      paddingBottom: '10px',
+      flexWrap: 'wrap'
+    },
+    dateButton: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '15px 20px',
+      borderRadius: '8px',
+      background: '#f5f5f5',
+      border: 'none',
+      cursor: 'pointer',
+      minWidth: '120px',
+      transition: 'all 0.2s'
+    },
+    activeDateButton: {
+      background: '#3b82f6',
+      color: 'white'
+    },
+    noDateButton: {
+      background: '#fbbf24',
+      color: 'white'
+    },
+    dateLabel: {
+      fontWeight: '500',
+      marginBottom: '5px'
+    },
+    orderCount: {
+      fontSize: '12px',
+      opacity: '0.8'
+    },
+    ordersContainer: {
+      background: 'white',
+      borderRadius: '10px',
+      padding: '20px',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+    },
+    dateTitle: {
+      fontSize: '20px',
+      marginBottom: '20px',
+      color: '#111827'
+    },
+    ordersList: {
+      display: 'grid',
+      gap: '15px'
+    },
+    orderCard: {
+      border: '1px solid #e5e7eb',
+      borderRadius: '8px',
+      padding: '15px',
+      transition: 'all 0.2s'
+    },
+    orderCardHover: {
+      borderColor: '#3b82f6'
+    },
+    orderHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginBottom: '10px'
+    },
+    orderTime: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      fontSize: '14px',
+      color: '#666'
+    },
+    statusBadge: {
+      padding: '4px 10px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: '500',
+      textTransform: 'capitalize'
+    },
+    statusPending: {
+      background: '#fef3c7',
+      color: '#92400e'
+    },
+    statusReady: {
+      background: '#dbeafe',
+      color: '#1e40af'
+    },
+    statusCollected: {
+      background: '#dcfce7',
+      color: '#166534'
+    },
+    statusCancelled: {
+      background: '#fee2e2',
+      color: '#991b1b'
+    },
+    orderDetails: {
+      marginBottom: '10px'
+    },
+    customerInfo: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      marginBottom: '5px',
+      fontSize: '14px'
+    },
+    patientNumber: {
+      background: '#f3f4f6',
+      padding: '2px 6px',
+      borderRadius: '4px',
+      fontFamily: 'monospace'
+    },
+    orderFooter: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '10px'
+    },
+    trackingNumber: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      fontFamily: 'monospace',
+      background: '#f3f4f6',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '13px'
+    },
+    actions: {
+      display: 'flex',
+      gap: '10px',
+      flexWrap: 'wrap'
+    },
+    statusSelect: {
+      padding: '6px 10px',
+      borderRadius: '4px',
+      border: '1px solid #d1d5db',
+      background: 'white',
+      cursor: 'pointer'
+    },
+    viewButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#3b82f6',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    editButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#10b981',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    deleteButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#ef4444',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    saveButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#059669',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    cancelButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#6b7280',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    dateInput: {
+      padding: '6px 10px',
+      borderRadius: '4px',
+      border: '1px solid #d1d5db',
+      background: 'white',
+      fontSize: '14px',
+      minWidth: '150px'
+    },
+    editSection: {
+      background: '#f9fafb',
+      padding: '10px',
+      borderRadius: '6px',
+      marginTop: '10px',
+      border: '1px solid #e5e7eb'
+    },
+    editActions: {
+      display: 'flex',
+      gap: '8px',
+      marginTop: '10px'
+    },
+    confirmDialog: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1001
+    },
+    confirmContent: {
+      background: 'white',
+      borderRadius: '10px',
+      padding: '25px',
+      maxWidth: '400px',
+      width: '90%',
+      textAlign: 'center'
+    },
+    confirmTitle: {
+      fontSize: '18px',
+      fontWeight: '600',
+      color: '#111827',
+      marginBottom: '15px'
+    },
+    confirmText: {
+      fontSize: '14px',
+      color: '#666',
+      marginBottom: '20px'
+    },
+    confirmActions: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'center'
+    },
+    loading: {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '200px',
+      fontSize: '16px',
+      color: '#666'
+    },
+    error: {
+      color: '#dc2626',
+      padding: '20px',
+      textAlign: 'center'
+    },
+    popup: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000
+    },
+    popupContent: {
+      background: 'white',
+      borderRadius: '10px',
+      padding: '30px',
+      maxWidth: '600px',
+      width: '90%',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      position: 'relative'
+    },
+    popupHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '20px'
+    },
+    popupTitle: {
+      fontSize: '24px',
+      fontWeight: '600',
+      color: '#111827'
+    },
+    closeButton: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '5px',
+      borderRadius: '4px',
+      color: '#666'
+    },
+    popupSection: {
+      marginBottom: '20px'
+    },
+    sectionTitle: {
+      fontSize: '16px',
+      fontWeight: '600',
+      color: '#374151',
+      marginBottom: '10px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    },
+    infoGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: '15px'
+    },
+    infoItem: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px'
+    },
+    infoLabel: {
+      fontSize: '12px',
+      color: '#666',
+      fontWeight: '500',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px'
+    },
+    infoValue: {
+      fontSize: '14px',
+      color: '#111827',
+      fontWeight: '400'
+    },
+    groupedSection: {
+      background: '#f9fafb',
+      padding: '15px',
+      borderRadius: '8px',
+      marginBottom: '20px'
+    },
+    groupTitle: {
+      fontSize: '18px',
+      fontWeight: '600',
+      color: '#374151',
+      marginBottom: '15px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  };
