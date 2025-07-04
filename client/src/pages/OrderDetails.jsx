@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { 
-  Calendar, Phone, User, CreditCard, Truck, MapPin, Hash, FileText, 
+ Phone, User, Package, MapPin, FileText, 
   Building, AlertCircle, Shield 
 } from 'lucide-react';
 
@@ -150,6 +150,54 @@ const styles = {
     fontSize: '0.875rem',
     fontWeight: '500',
   },
+  statusContainer: {
+    display: 'flex',
+    gap: '1rem',
+    marginBottom: '1rem',
+    flexWrap: 'wrap'
+  },
+  statusCard: {
+    flex: 1,
+    minWidth: '200px',
+    backgroundColor: 'white',
+    borderRadius: '0.5rem',
+    padding: '1rem',
+    border: '1px solid #e5e7eb',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+  },
+  statusHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#374151'
+  },
+  statusBadge: {
+    padding: '0.25rem 0.5rem',
+    borderRadius: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    display: 'inline-block'
+  },
+  statusSelect: {
+    width: '100%',
+    padding: '0.375rem 0.5rem',
+    borderRadius: '0.25rem',
+    border: '1px solid #d1d5db',
+    fontSize: '0.875rem',
+    marginTop: '0.5rem'
+  },
+  statusButton: {
+    width: '100%',
+    padding: '0.375rem 0.5rem',
+    borderRadius: '0.25rem',
+    border: 'none',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    marginTop: '0.5rem'
+  }
 };
 
 const OrderDetails = () => {
@@ -166,19 +214,46 @@ const OrderDetails = () => {
   const [pharmacyRemark, setPharmacyRemark] = useState('');
   const [pharmacyUser, setPharmacyUser] = useState('');
 
+  const statusColors = {
+    pending: { bg: '#e0e7ff', text: '#3730a3' },
+    'in progress': { bg: '#fef3c7', text: '#92400e' },
+    ready: { bg: '#dbeafe', text: '#1e40af' },
+    collected: { bg: '#dcfce7', text: '#166534' },
+    completed: { bg: '#dcfce7', text: '#065f46' },
+    cancelled: { bg: '#fee2e2', text: '#991b1b' }
+  };
+
+  // Helper function to get request headers with user role
+  const getRequestHeaders = () => {
+    const role = sessionStorage.getItem('userRole') || 'jpmc';
+    return {
+      'Content-Type': 'application/json',
+      'X-User-Role': role
+    };
+  };
+
   useEffect(() => {
     // Get user role from sessionStorage
-    const role = sessionStorage.getItem('userRole');
+    const role = sessionStorage.getItem('userRole') || 'jpmc';
     setUserRole(role);
     
     const fetchOrder = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/orders/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch order');
+        const response = await fetch(`/api/orders/${id}`, {
+          method: 'GET',
+          headers: getRequestHeaders()
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to fetch order' }));
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         setOrder(data);
       } catch (err) {
+        console.error('Error fetching order:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -187,6 +262,28 @@ const OrderDetails = () => {
 
     fetchOrder();
   }, [id]);
+
+  const handleStatusUpdate = async (statusType, newStatus) => {
+    try {
+      const endpoint = statusType === 'goRush' ? 'go-rush-status' : 'pharmacy-status';
+      const response = await fetch(`/api/orders/${id}/${endpoint}`, {
+        method: 'PUT',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to update status' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const updatedOrder = await response.json();
+      setOrder(updatedOrder);
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert(`Error updating status: ${err.message}`);
+    }
+  };
 
   const handleAddLog = async () => {
     if (!logNote.trim() || !logCategory || !logCreatedBy.trim()) {
@@ -197,9 +294,7 @@ const OrderDetails = () => {
     try {
       const response = await fetch(`/api/orders/${id}/logs`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getRequestHeaders(),
         body: JSON.stringify({
           note: logNote,
           category: logCategory,
@@ -207,7 +302,10 @@ const OrderDetails = () => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to add log');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to add log' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
       
       const newLog = await response.json();
       setOrder(prev => ({
@@ -219,7 +317,8 @@ const OrderDetails = () => {
       setLogCategory('');
       setLogCreatedBy('');
     } catch (err) {
-      alert(err.message);
+      console.error('Error adding log:', err);
+      alert(`Error adding log: ${err.message}`);
     }
   };
 
@@ -232,16 +331,17 @@ const OrderDetails = () => {
     try {
       const response = await fetch(`/api/orders/${id}/pharmacy-remarks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getRequestHeaders(),
         body: JSON.stringify({
           remark: pharmacyRemark,
           createdBy: pharmacyUser
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to add remark');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to add remark' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
       
       const newRemark = await response.json();
       setOrder(prev => ({
@@ -252,7 +352,8 @@ const OrderDetails = () => {
       setPharmacyRemark('');
       setPharmacyUser('');
     } catch (err) {
-      alert(err.message);
+      console.error('Error adding pharmacy remark:', err);
+      alert(`Error adding pharmacy remark: ${err.message}`);
     }
   };
 
@@ -267,7 +368,13 @@ const OrderDetails = () => {
   if (error) return (
     <div style={styles.page}>
       <div style={styles.container}>
-        <div style={{ ...styles.card, color: '#dc2626' }}>{error}</div>
+        <div style={{ ...styles.card, color: '#dc2626' }}>
+          <h2>Error Loading Order</h2>
+          <p>{error}</p>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '1rem' }}>
+            Current user role: {userRole || 'Not set'}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -289,10 +396,78 @@ const OrderDetails = () => {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#111827', marginBottom: '0.5rem' }}>Order Details</h1>
               <p style={styles.label}>Order ID: {order._id}</p>
+              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                User Role: {userRole} | Product: {order.product || 'legacy'}
+              </p>
             </div>
             <div style={styles.badge}>
               {order.doTrackingNumber || 'No tracking number'}
             </div>
+          </div>
+        </div>
+        
+        <div style={styles.statusContainer}>
+          {/* Go Rush Status Card */}
+          <div style={styles.statusCard}>
+            <div style={styles.statusHeader}>
+              <Package style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+              Go Rush Status
+            </div>
+            <div style={{
+              ...styles.statusBadge,
+              backgroundColor: statusColors[order.goRushStatus?.toLowerCase()]?.bg || '#f3f4f6',
+              color: statusColors[order.goRushStatus?.toLowerCase()]?.text || '#6b7280'
+            }}>
+              {order.goRushStatus || 'pending'}
+            </div>
+            {(userRole === 'gorush' || userRole === 'go-rush') && (
+              <>
+                <select
+                  value={order.goRushStatus || 'pending'}
+                  onChange={(e) => handleStatusUpdate('goRush', e.target.value)}
+                  style={styles.statusSelect}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in progress">In Progress</option>
+                  <option value="ready">Ready</option>
+                  <option value="collected">Collected</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </>
+            )}
+          </div>
+
+          {/* Pharmacy Status Card */}
+          <div style={styles.statusCard}>
+            <div style={styles.statusHeader}>
+              <Building style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+              Pharmacy Status
+            </div>
+            <div style={{
+              ...styles.statusBadge,
+              backgroundColor: statusColors[order.pharmacyStatus?.toLowerCase()]?.bg || '#f3f4f6',
+              color: statusColors[order.pharmacyStatus?.toLowerCase()]?.text || '#6b7280'
+            }}>
+              {order.pharmacyStatus || 'pending'}
+            </div>
+            {(userRole === 'jpmc' || userRole === 'moh') && (
+              <>
+                <select
+                  value={order.pharmacyStatus || 'pending'}
+                  onChange={(e) => handleStatusUpdate('pharmacy', e.target.value)}
+                  style={styles.statusSelect}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in progress">In Progress</option>
+                  <option value="ready">Ready</option>
+                  <option value="collected">Collected</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+
+              </>
+            )}
           </div>
         </div>
 
@@ -323,7 +498,7 @@ const OrderDetails = () => {
               </div>
               <div style={{ ...styles.row, borderBottom: 'none' }}>
                 <span style={styles.label}>Payment Amount:</span>
-                <span style={styles.valueGreen}>{order.paymentAmount || 'N/A'}</span>
+                <span style={styles.valueGreen}>${order.paymentAmount || 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -419,7 +594,7 @@ const OrderDetails = () => {
             Go Rush Internal Logs
           </h2>
           
-          {userRole === 'gorush' ? (
+          {(userRole === 'gorush' || userRole === 'go-rush') ? (
             <>
               <div style={styles.notice}>
                 <AlertCircle style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
@@ -492,18 +667,18 @@ const OrderDetails = () => {
           )}
         </div>
 
-        {/* Pharmacy Remarks Section - Show for both roles but only allow JPMC to add */}
+        {/* Pharmacy Remarks Section - Show for both roles but only allow JPMC/MOH to add */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>
             <Building style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem', color: '#10b981' }} /> 
             Pharmacy Remarks
           </h2>
 
-          {userRole === 'jpmc' ? (
+          {(userRole === 'jpmc' || userRole === 'moh') ? (
             <>
               <div style={{ ...styles.notice, backgroundColor: '#dcfce7', borderColor: '#10b981', color: '#166534' }}>
                 <AlertCircle style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-                <strong>JPMC Pharmacy Staff:</strong> Clinical notes and medication-related remarks
+                <strong>{userRole === 'jpmc' ? 'JPMC' : 'MOH'} Pharmacy Staff:</strong> Clinical notes and medication-related remarks
               </div>
 
               <div style={styles.inputGroup}>
@@ -532,7 +707,7 @@ const OrderDetails = () => {
           ) : (
             <div style={{ ...styles.notice, backgroundColor: '#f3f4f6', borderColor: '#9ca3af', color: '#374151' }}>
               <AlertCircle style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-              <strong>View Only:</strong> Pharmacy remarks from JPMC staff
+              <strong>View Only:</strong> Pharmacy remarks from JPMC/MOH staff
             </div>
           )}
 

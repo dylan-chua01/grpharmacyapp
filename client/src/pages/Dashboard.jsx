@@ -646,7 +646,7 @@ const todaysParcels = orders.filter(order =>
                           {order.creationDate}
                         </td>
                         <td style={styles.tableCell}>
-                          <span style={getStatusStyle(order.status)}>
+                          <span>
                             {order.status || 'Unknown'}
                           </span>
                         </td>

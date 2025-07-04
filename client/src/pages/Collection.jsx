@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Package, ChevronRight, Clock, User, MapPin, Phone, X, CreditCard, FileText, Building, DollarSign, Users } from 'lucide-react';
+import { Calendar, Package, ChevronRight, ExternalLink, RefreshCw, Check, Clock, User, MapPin, Phone, X, CreditCard, FileText, Building, DollarSign, Users, Trash2, Edit3, Save, XCircle } from 'lucide-react';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
+import PasswordModal from '../components/PasswordModal';
+import { useNavigate } from 'react-router-dom';
 
 const CollectionDatesPage = () => {
   const [dates, setDates] = useState([]);
@@ -10,6 +12,18 @@ const CollectionDatesPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [newCollectionDate, setNewCollectionDate] = useState('');
+  const [userRole, setUserRole] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (userRole) {
+      fetchCollectionDates();
+      fetchOrdersWithoutCollectionDates();
+    }
+  }, [userRole]);
 
   // Styles
   const styles = {
@@ -129,10 +143,6 @@ const CollectionDatesPage = () => {
       background: '#dcfce7',
       color: '#166534'
     },
-    statusDelayed: {
-      background: '#fed7d7',
-      color: '#c53030'
-    },
     statusCancelled: {
       background: '#fee2e2',
       color: '#991b1b'
@@ -156,7 +166,9 @@ const CollectionDatesPage = () => {
     orderFooter: {
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'center'
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '10px'
     },
     trackingNumber: {
       display: 'flex',
@@ -170,7 +182,8 @@ const CollectionDatesPage = () => {
     },
     actions: {
       display: 'flex',
-      gap: '10px'
+      gap: '10px',
+      flexWrap: 'wrap'
     },
     statusSelect: {
       padding: '6px 10px',
@@ -191,8 +204,109 @@ const CollectionDatesPage = () => {
       cursor: 'pointer',
       fontSize: '14px'
     },
-    viewButtonHover: {
-      background: '#2563eb'
+    editButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#10b981',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    deleteButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#ef4444',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    saveButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#059669',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    cancelButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#6b7280',
+      color: 'white',
+      border: 'none',
+      padding: '6px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px'
+    },
+    dateInput: {
+      padding: '6px 10px',
+      borderRadius: '4px',
+      border: '1px solid #d1d5db',
+      background: 'white',
+      fontSize: '14px',
+      minWidth: '150px'
+    },
+    editSection: {
+      background: '#f9fafb',
+      padding: '10px',
+      borderRadius: '6px',
+      marginTop: '10px',
+      border: '1px solid #e5e7eb'
+    },
+    editActions: {
+      display: 'flex',
+      gap: '8px',
+      marginTop: '10px'
+    },
+    confirmDialog: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1001
+    },
+    confirmContent: {
+      background: 'white',
+      borderRadius: '10px',
+      padding: '25px',
+      maxWidth: '400px',
+      width: '90%',
+      textAlign: 'center'
+    },
+    confirmTitle: {
+      fontSize: '18px',
+      fontWeight: '600',
+      color: '#111827',
+      marginBottom: '15px'
+    },
+    confirmText: {
+      fontSize: '14px',
+      color: '#666',
+      marginBottom: '20px'
+    },
+    confirmActions: {
+      display: 'flex',
+      gap: '10px',
+      justifyContent: 'center'
     },
     loading: {
       display: 'flex',
@@ -300,103 +414,169 @@ const CollectionDatesPage = () => {
   };
 
   useEffect(() => {
-    fetchCollectionDates();
-    fetchOrdersWithoutCollectionDates();
-  }, []);
-
-  useEffect(() => {
     if (selectedDate && selectedDate !== 'no-date') {
       fetchOrdersForDate(selectedDate);
     }
   }, [selectedDate]);
 
-  const fetchCollectionDates = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:5050/api/collection-dates');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+const fetchCollectionDates = async () => {
+  setLoading(true);
+  try {
+    const response = await fetch('http://localhost:5050/api/collection-dates', {
+      headers: {
+        'X-User-Role': userRole // Add user role header
       }
-      const data = await response.json();
-      setDates(data);
-    } catch (error) {
-      console.error('Error fetching dates:', error);
-    } finally {
-      setLoading(false);
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    const data = await response.json();
+    setDates(data);
+  } catch (error) {
+    console.error('Error fetching dates:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const fetchOrdersWithoutCollectionDates = async () => {
-    try {
-      // Fetch all orders and filter client-side for those without collectionDate
-      const response = await fetch('http://localhost:5050/api/orders');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+const fetchOrdersWithoutCollectionDates = async () => {
+  try {
+    const response = await fetch('http://localhost:5050/api/orders', {
+      headers: {
+        'X-User-Role': userRole // Add user role header
       }
-      const allOrders = await response.json();
-      
-      // Filter orders that don't have a collectionDate (null, undefined, or empty string)
-      const data = allOrders.filter(order => 
-        !order.collectionDate || 
-        order.collectionDate === '' || 
-        order.collectionDate === null
-      );
-      
-      // Group by creation date
-      const grouped = data.reduce((acc, order) => {
-        const dateKey = format(parseISO(order.creationDate), 'yyyy-MM-dd');
-        if (!acc[dateKey]) {
-          acc[dateKey] = [];
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const allOrders = await response.json();
+    
+    const data = allOrders.filter(order => 
+      !order.collectionDate || 
+      order.collectionDate === '' || 
+      order.collectionDate === null
+    );
+    
+    const grouped = data.reduce((acc, order) => {
+      const dateKey = format(parseISO(order.creationDate), 'yyyy-MM-dd');
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(order);
+      return acc;
+    }, {});
+    
+    setOrdersWithoutDates(grouped);
+  } catch (error) {
+    console.error('Error fetching orders without collection dates:', error);
+    setOrdersWithoutDates({});
+  }
+};
+
+const fetchOrdersForDate = async (dateString) => {
+  try {
+    const response = await fetch(
+      `http://localhost:5050/api/orders/collection-dates?date=${dateString}`,
+      {
+        headers: {
+          'X-User-Role': userRole // Add user role header
         }
-        acc[dateKey].push(order);
-        return acc;
-      }, {});
-      
-      setOrdersWithoutDates(grouped);
-    } catch (error) {
-      console.error('Error fetching orders without collection dates:', error);
-      // Set empty object on error to prevent UI issues
-      setOrdersWithoutDates({});
-    }
-  };
-
-  const fetchOrdersForDate = async (dateString) => {
-    try {
-      const response = await fetch(
-        `http://localhost:5050/api/orders/collection-dates?date=${dateString}`
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
-      setOrders(data);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    const data = await response.json();
+    setOrders(data);
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+  }
+};
 
   const handleDateChange = (dateString) => {
     setSelectedDate(dateString);
+    setEditingOrderId(null);
+    setNewCollectionDate('');
   };
 
-  const handleUpdateStatus = async (orderId, status) => {
+
+const handleUpdateStatus = async (orderId, statusType, status) => {
+  // Check if user has permission to update this status type
+  if ((statusType === 'goRushStatus' && userRole !== 'gorush') || 
+      (statusType === 'pharmacyStatus' && userRole !== 'jpmc' && userRole !== 'moh')) {
+    alert('You do not have permission to update this status');
+    return;
+  }
+
+  // ✅ Dynamically select correct endpoint
+  const endpoint = statusType === 'pharmacyStatus'
+    ? `http://localhost:5050/api/orders/${orderId}/pharmacy-status`
+    : `http://localhost:5050/api/orders/${orderId}/go-rush-status`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Role': userRole // Make sure to include user role header
+      },
+      body: JSON.stringify({ status }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update status');
+    }
+
+    refreshCurrentView();
+  } catch (error) {
+    console.error('Error updating status:', error);
+    alert(`Error updating status: ${error.message}`);
+  }
+};
+
+
+  const handleEditCollectionDate = (orderId, currentDate) => {
+    setEditingOrderId(orderId);
+    setNewCollectionDate(currentDate || '');
+  };
+
+  const handleSaveCollectionDate = async (orderId) => {
     try {
-      await fetch(`http://localhost:5050/api/orders/${orderId}/status`, {
+      const response = await fetch(`http://localhost:5050/api/orders/${orderId}/collection-date`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: status
+          collectionDate: newCollectionDate || null
         }),
       });
-      if (selectedDate === 'no-date') {
-        fetchOrdersWithoutCollectionDates();
-      } else {
-        fetchOrdersForDate(selectedDate);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      setEditingOrderId(null);
+      setNewCollectionDate('');
+      refreshCurrentView();
+      fetchCollectionDates(); // Refresh the date counts
     } catch (error) {
-      console.error('Error updating status:', error);
+      console.error('Error updating collection date:', error);
+      alert('Error updating collection date. Please try again.');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingOrderId(null);
+    setNewCollectionDate('');
+  };
+
+  const refreshCurrentView = () => {
+    if (selectedDate === 'no-date') {
+      fetchOrdersWithoutCollectionDates();
+    } else if (selectedDate) {
+      fetchOrdersForDate(selectedDate);
     }
   };
 
@@ -418,16 +598,32 @@ const CollectionDatesPage = () => {
     return format(date, 'EEEE, MMMM d');
   };
 
+  const statusStyles = {
+    pending: { bg: '#fef3c7', text: '#92400e', icon: Clock },
+    ready: { bg: '#dbeafe', text: '#1e40af', icon: Package },
+    collected: { bg: '#dcfce7', text: '#166534', icon: Check },
+    completed: { bg: '#dcfce7', text: '#065f46', icon: Check },
+    cancelled: { bg: '#fee2e2', text: '#991b1b', icon: X },
+    'in progress': { bg: '#fef3c7', text: '#854d0e', icon: RefreshCw }
+  };
+
   const getStatusStyle = (status) => {
-    switch (status) {
+    if (!status) return { ...styles.statusBadge, ...styles.statusPending };
+
+    switch (status.toLowerCase()) {
       case 'ready':
         return { ...styles.statusBadge, ...styles.statusReady };
       case 'collected':
+      case 'completed':
         return { ...styles.statusBadge, ...styles.statusCollected };
-      case 'delayed':
-        return { ...styles.statusBadge, ...styles.statusDelayed };
       case 'cancelled':
         return { ...styles.statusBadge, ...styles.statusCancelled };
+      case 'in progress':
+        return { 
+          ...styles.statusBadge, 
+          backgroundColor: '#fef3c7',
+          color: '#92400e'
+        };
       default:
         return { ...styles.statusBadge, ...styles.statusPending };
     }
@@ -437,23 +633,41 @@ const CollectionDatesPage = () => {
     return Object.values(ordersWithoutDates).reduce((total, orders) => total + orders.length, 0);
   };
 
+  const renderStatusBadge = (status, type) => {
+    const statusConfig = statusStyles[status?.toLowerCase()] || statusStyles.pending;
+    const Icon = statusConfig.icon || Clock;
+    
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '4px 8px',
+        borderRadius: '12px',
+        backgroundColor: statusConfig.bg,
+        color: statusConfig.text,
+        fontSize: '12px',
+        fontWeight: '500'
+      }}>
+        <Icon size={14} />
+        <span>{type}: {status || 'pending'}</span>
+      </div>
+    );
+  };
+
   const renderOrderCard = (order) => (
-    <div 
-      key={order._id} 
-      style={styles.orderCard}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
-    >
+    <div key={order._id} style={styles.orderCard}>
       <div style={styles.orderHeader}>
         <span style={styles.orderTime}>
           <Clock size={16} />
-          {format(parseISO(order.creationDate), 'h:mm a')}
+          {order.dateTimeSubmission}
         </span>
-        <span style={getStatusStyle(order.status)}>
-          {order.status || 'pending'}
-        </span>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {renderStatusBadge(order.pharmacyStatus, 'Pharmacy')}
+          {renderStatusBadge(order.goRushStatus, 'GoRush')}
+        </div>
       </div>
-      
+
       <div style={styles.orderDetails}>
         <div style={styles.customerInfo}>
           <User size={16} />
@@ -474,6 +688,37 @@ const CollectionDatesPage = () => {
         )}
       </div>
       
+      {editingOrderId === order._id && (
+        <div style={styles.editSection}>
+          <div style={styles.customerInfo}>
+            <Calendar size={16} />
+            <span>Collection Date:</span>
+          </div>
+          <input
+            type="date"
+            value={newCollectionDate}
+            onChange={(e) => setNewCollectionDate(e.target.value)}
+            style={styles.dateInput}
+          />
+          <div style={styles.editActions}>
+            <button
+              onClick={() => handleSaveCollectionDate(order._id)}
+              style={styles.saveButton}
+            >
+              <Save size={14} />
+              Save
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              style={styles.cancelButton}
+            >
+              <XCircle size={14} />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div style={styles.orderFooter}>
         <span style={styles.trackingNumber}>
           <Package size={16} />
@@ -481,17 +726,66 @@ const CollectionDatesPage = () => {
         </span>
         
         <div style={styles.actions}>
-          <select
-            value={order.status || 'pending'}
-            onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
-            style={styles.statusSelect}
-          >
-            <option value="pending">Pending</option>
-            <option value="collected">Collected</option>
-            <option value="delayed">Delayed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          
+{/* Pharmacy Status Dropdown - Only editable by JPMC & MOH */}
+<div style={{ position: 'relative' }}>
+  <select
+    value={order.pharmacyStatus || 'pending'}
+    onChange={(e) => handleUpdateStatus(order._id, 'pharmacyStatus', e.target.value)}
+    style={{
+      ...styles.statusSelect,
+      opacity: (userRole === 'jpmc' || userRole === 'moh') ? 1 : 0.6,
+      cursor: (userRole === 'jpmc' || userRole === 'moh') ? 'pointer' : 'not-allowed'
+    }}
+    disabled={userRole !== 'jpmc' && userRole !== 'moh'}
+  >
+    <option value="pending">Pending</option>
+    <option value="ready">Ready</option>
+    <option value="collected">Collected</option>
+    <option value="cancelled">Cancelled</option>
+  </select>
+  {userRole !== 'jpmc' && userRole !== 'moh' && (
+    <div style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      cursor: 'not-allowed'
+    }} title="Only pharmacy users can edit this status"></div>
+  )}
+</div>
+
+{/* GoRush Status Dropdown - Only editable by GoRush */}
+<div style={{ position: 'relative' }}>
+  <select
+    value={order.goRushStatus || 'pending'}
+    onChange={(e) => handleUpdateStatus(order._id, 'goRushStatus', e.target.value)}
+    style={{
+      ...styles.statusSelect,
+      opacity: userRole === 'gorush' ? 1 : 0.6,
+      cursor: userRole === 'gorush' ? 'pointer' : 'not-allowed'
+    }}
+    disabled={userRole !== 'gorush'}
+  >
+    <option value="pending">Pending</option>
+    <option value="in progress">In Progress</option>
+    <option value="ready">Ready</option>
+    <option value="collected">Collected</option>
+    <option value="completed">Completed</option>
+    <option value="cancelled">Cancelled</option>
+  </select>
+  {userRole !== 'gorush' && (
+    <div style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      cursor: 'not-allowed'
+    }} title="Only GoRush users can edit this status"></div>
+  )}
+</div>
+          {/* View button - visible to all */}
           <button
             onClick={() => handleViewOrder(order)}
             style={styles.viewButton}
@@ -500,6 +794,19 @@ const CollectionDatesPage = () => {
           >
             View <ChevronRight size={16} />
           </button>
+
+          {/* Edit Date button - only for JPMC users */}
+          {userRole === 'jpmc' && editingOrderId !== order._id && (
+            <button
+              onClick={() => handleEditCollectionDate(order._id, order.collectionDate)}
+              style={styles.editButton}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+            >
+              <Edit3 size={14} />
+              Edit Date
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -531,19 +838,35 @@ const CollectionDatesPage = () => {
               <div style={styles.infoItem}>
                 <span style={styles.infoLabel}>Created On</span>
                 <span style={styles.infoValue}>
-                  {selectedOrder.creationDate}
+                  {selectedOrder.dateTimeSubmission}
+                </span>
+              </div>
+              <div style={styles.infoItem}>
+                <span style={styles.infoLabel}>Collection Date</span>
+                <span style={styles.infoValue}>
+                  {selectedOrder.collectionDate ? format(parseISO(selectedOrder.collectionDate), 'yyyy-MM-dd') : 'Not set'}
                 </span>
               </div>
               <div style={styles.infoItem}>
                 <span style={styles.infoLabel}>Delivery Type</span>
                 <span style={styles.infoValue}>{selectedOrder.jobMethod || 'N/A'}</span>
               </div>
-              <div style={styles.infoItem}>
-                <span style={styles.infoLabel}>Status</span>
-                <span style={getStatusStyle(selectedOrder.status)}>
-                  {selectedOrder.status || 'pending'}
-                </span>
-              </div>
+              {/* Pharmacy Status */}
+<div style={styles.infoItem}>
+  <span style={styles.infoLabel}>Pharmacy Status</span>
+  <span style={getStatusStyle(selectedOrder.pharmacyStatus)}>
+    {selectedOrder.pharmacyStatus || 'pending'}
+  </span>
+</div>
+
+{/* GoRush Status */}
+<div style={styles.infoItem}>
+  <span style={styles.infoLabel}>GoRush Status</span>
+  <span style={getStatusStyle(selectedOrder.goRushStatus)}>
+    {selectedOrder.goRushStatus || 'pending'}
+  </span>
+</div>
+
             </div>
           </div>
 
@@ -564,7 +887,7 @@ const CollectionDatesPage = () => {
               <div style={styles.infoItem}>
                 <span style={styles.infoLabel}>Date of Birth</span>
                 <span style={styles.infoValue}>
-                  {selectedOrder.dateOfBirth}
+                  {selectedOrder.dateOfBirth || 'N/A'}
                 </span>
               </div>
               <div style={styles.infoItem}>
@@ -637,16 +960,71 @@ const CollectionDatesPage = () => {
               </div>
             </div>
           )}
+                  <div style={{ 
+          display: 'flex', 
+          justifyContent: 'flex-end',
+          marginTop: '20px',
+          gap: '10px'
+        }}>
+          <button
+            onClick={() => {
+              navigate(`/orders/${selectedOrder._id}`);
+              closePopup();
+            }}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+          >
+            <ExternalLink size={16} />
+            View Full Details
+          </button>
+        </div>
         </div>
       </div>
     );
   };
 
+  if (showPasswordModal) {
+    return (
+      <PasswordModal 
+        onSuccess={(role) => {
+          setUserRole(role);
+          setShowPasswordModal(false);
+        }} 
+      />
+    );
+  }
+
   if (loading) return <div style={styles.loading}>Loading collection dates...</div>;
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Collection Dates</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={styles.title}>Collection Dates</h1>
+        <div style={{ 
+          padding: '6px 12px', 
+          borderRadius: '4px', 
+          backgroundColor: userRole === 'gorush' ? '#3b82f6' : '#10b981',
+          color: 'white',
+          fontSize: '14px',
+          fontWeight: '500'
+        }}>
+          {userRole === 'gorush' ? 'GoRush User' : 'Pharmacy User'}
+        </div>
+      </div>
       
       {!selectedDate ? (
         <div style={styles.selectPrompt}>
@@ -665,54 +1043,50 @@ const CollectionDatesPage = () => {
             onClick={() => handleDateChange(date.dateString)}
           >
             <span style={styles.dateLabel}>{getDateLabel(date.dateString)}</span>
-            <span style={styles.orderCount}>{date.orderCount} orders</span>
+            <span style={styles.orderCount}>{date.count} orders</span>
           </button>
         ))}
         
-        {getTotalOrdersWithoutDates() > 0 && (
-          <button
-            style={{
-              ...styles.dateButton,
-              ...styles.noDateButton,
-              ...(selectedDate === 'no-date' ? { background: '#f59e0b' } : {})
-            }}
-            onClick={() => handleDateChange('no-date')}
-          >
-            <span style={styles.dateLabel}>No Collection Date</span>
-            <span style={styles.orderCount}>{getTotalOrdersWithoutDates()} orders</span>
-          </button>
-        )}
+        <button
+          style={{
+            ...styles.dateButton,
+            ...(selectedDate === 'no-date' ? styles.noDateButton : {})
+          }}
+          onClick={() => handleDateChange('no-date')}
+        >
+          <span style={styles.dateLabel}>No Collection Date</span>
+          <span style={styles.orderCount}>{getTotalOrdersWithoutDates()} orders</span>
+        </button>
       </div>
 
-      {selectedDate && selectedDate !== 'no-date' && (
+      {selectedDate && (
         <div style={styles.ordersContainer}>
           <h2 style={styles.dateTitle}>
-            {getDateLabel(selectedDate)} - {orders.length} orders
+            {selectedDate === 'no-date' ? 'Orders Without Collection Dates' : getDateLabel(selectedDate)}
           </h2>
           
-          <div style={styles.ordersList}>
-            {orders.map(renderOrderCard)}
-          </div>
-        </div>
-      )}
-
-      {selectedDate === 'no-date' && (
-        <div style={styles.ordersContainer}>
-          <h2 style={styles.dateTitle}>
-            Orders without Collection Date - {getTotalOrdersWithoutDates()} orders
-          </h2>
-          
-          {Object.entries(ordersWithoutDates).map(([dateKey, dateOrders]) => (
-            <div key={dateKey} style={styles.groupedSection}>
-              <div style={styles.groupTitle}>
-                <Calendar size={20} />
-                Created on {format(parseISO(dateKey), 'EEEE, MMMM d, yyyy')} ({dateOrders.length} orders)
-              </div>
-              <div style={styles.ordersList}>
-                {dateOrders.map(renderOrderCard)}
-              </div>
+          {selectedDate === 'no-date' ? (
+            Object.entries(ordersWithoutDates).length > 0 ? (
+              Object.entries(ordersWithoutDates).map(([dateString, dateOrders]) => (
+                <div key={dateString}>
+                  <h3 style={{ margin: '15px 0 10px', fontSize: '16px' }}>
+                    Created on: {format(parseISO(dateString), 'EEEE, MMMM d')}
+                  </h3>
+                  <div style={styles.ordersList}>
+                    {dateOrders.map(renderOrderCard)}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p style={{ textAlign: 'center', color: '#666' }}>No orders without collection dates</p>
+            )
+          ) : orders.length > 0 ? (
+            <div style={styles.ordersList}>
+              {orders.map(renderOrderCard)}
             </div>
-          ))}
+          ) : (
+            <p style={{ textAlign: 'center', color: '#666' }}>No orders for this date</p>
+          )}
         </div>
       )}
 

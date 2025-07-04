@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Search, Calendar, Phone, Package, Eye, X, Users, HeartPulse, AlertCircle, Plus, Filter, RefreshCw,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Info, MapPin, Mail, CreditCard
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
 
 const CustomersPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -18,6 +17,7 @@ const CustomersPage = () => {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('orders');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [totalOrdersCount, setTotalOrdersCount] = useState(0);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,6 +35,25 @@ const CustomersPage = () => {
   const prevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
   const firstPage = () => setCurrentPage(1);
   const lastPage = () => setCurrentPage(totalPages);
+
+  const apiCall = async (url, options = {}) => {
+  const userRole = sessionStorage.getItem('userRole');
+  
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    'X-User-Role': userRole || 'jpmc'
+  };
+
+  const config = {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers
+    }
+  };
+
+  return fetch(url, config);
+};
 
   // Reset to first page when search term changes
   useEffect(() => {
@@ -328,33 +347,56 @@ const CustomersPage = () => {
     }
   };
 
-  // Fetch all customers
-  const fetchCustomers = async () => {
-    try {
-      setLoading(true);
-      setIsRefreshing(true);
-      setError(null);
-      const response = await fetch('http://localhost:5050/api/customers', {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+const fetchCustomers = async () => {
+  try {
+    setLoading(true);
+    setIsRefreshing(true);
+    setError(null);
+    
+    // Get user role from sessionStorage
+    const userRole = sessionStorage.getItem('userRole');
+    
+    const customersResponse = await fetch('http://localhost:5050/api/customers', {
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-Role': userRole || 'jpmc'
       }
-      
-      const data = await response.json();
-      setCustomers(data);
-      setFilteredCustomers(data);
-    } catch (err) {
-      setError(err.message);
-      console.error("Error fetching customers:", err);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+    });
+    
+    if (!customersResponse.ok) throw new Error(`HTTP error! status: ${customersResponse.status}`);
+    
+    const customersData = await customersResponse.json();
+    
+    // Fetch orders count - NOW WITH USER ROLE HEADER
+    const ordersResponse = await fetch('http://localhost:5050/api/orders', {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Role': userRole || 'jpmc'
+      }
+    });
+    
+    if (!ordersResponse.ok) throw new Error(`HTTP error! status: ${ordersResponse.status}`);
+    const ordersData = await ordersResponse.json();
+    
+    // Process data
+    const uniqueCustomers = customersData.reduce((acc, current) => {
+      const x = acc.find(item => item.patientNumber === current.patientNumber);
+      if (!x) return acc.concat([current]);
+      return acc;
+    }, []);
+    
+    setCustomers(uniqueCustomers);
+    setFilteredCustomers(uniqueCustomers);
+    setTotalOrdersCount(ordersData.length); // Add this state variable
+    
+  } catch (err) {
+    setError(err.message);
+    console.error("Error fetching data:", err);
+  } finally {
+    setLoading(false);
+    setIsRefreshing(false);
+  }
+};
 
   useEffect(() => {
     fetchCustomers();
@@ -374,33 +416,28 @@ const CustomersPage = () => {
     }
   }, [searchTerm, customers]);
 
-  // Fetch customer orders
-  const fetchCustomerOrders = async (customer) => {
-    try {
-      setOrdersLoading(true);
-      setError(null);
-      const response = await fetch(
-        `http://localhost:5050/api/customers/${customer.patientNumber}/orders`,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setCustomerOrders(data);
-    } catch (err) {
-      setError(err.message);
-      console.error("Error fetching orders:", err);
-    } finally {
-      setOrdersLoading(false);
+  const userRole = sessionStorage.getItem('userRole');
+
+const fetchCustomerOrders = async (customer) => {
+  try {
+    setOrdersLoading(true);
+    setError(null);
+    
+    const response = await apiCall(`http://localhost:5050/api/customers/${customer.patientNumber}/orders`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    
+    const data = await response.json();
+    setCustomerOrders(data);
+  } catch (err) {
+    setError(err.message);
+    console.error("Error fetching orders:", err);
+  } finally {
+    setOrdersLoading(false);
+  }
+};
 
   const handleViewCustomer = (customer) => {
     setSelectedCustomer(customer);
@@ -530,10 +567,6 @@ const CustomersPage = () => {
               />
               Refresh
             </button>
-            <button style={styles.primaryButton}>
-              <Plus style={{ width: '1rem', height: '1rem' }} />
-              Add Patient
-            </button>
           </div>
         </div>
 
@@ -594,11 +627,13 @@ const CustomersPage = () => {
               <div>
                 <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Total Orders</p>
                 <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b' }}>
-                  {customers.reduce((total, c) => total + (c.totalOrders || 0), 0)}
+                  {totalOrdersCount}
                 </h3>
               </div>
             </div>
           </div>
+        
+        
         </div>
 
         {/* Search and Filter */}
@@ -651,25 +686,6 @@ const CustomersPage = () => {
                 </button>
               )}
             </div>
-            <button style={{
-              backgroundColor: 'white',
-              color: '#64748b',
-              padding: '0 1rem',
-              borderRadius: '8px',
-              fontWeight: '500',
-              border: '1px solid #e2e8f0',
-              transition: 'all 0.2s ease',
-              ':hover': {
-                backgroundColor: '#f8fafc',
-                borderColor: '#cbd5e1'
-              },
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <Filter style={{ width: '0.875rem', height: '0.875rem' }} />
-              Filter
-            </button>
           </div>
           {searchTerm && (
             <div style={{ 
@@ -705,7 +721,7 @@ const CustomersPage = () => {
             <div style={{ 
               display: 'grid',
               gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
-              gap: '1rem',
+              gap: '1.5rem',
               '@media (minWidth: 640px)': {
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))'
               },
@@ -772,35 +788,6 @@ const CustomersPage = () => {
                     gap: '0.75rem',
                     marginBottom: '1.5rem'
                   }}>
-                    <div style={{ 
-                      backgroundColor: '#f8fafc',
-                      padding: '0.75rem',
-                      borderRadius: '8px',
-                      border: '1px solid #e2e8f0'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <Package style={{ width: '1rem', height: '1rem', color: '#3b82f6' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>ORDERS</span>
-                      </div>
-                      <p style={{ fontWeight: '600', color: '#1e293b', fontSize: '1rem' }}>
-                        {customer.totalOrders || 0}
-                      </p>
-                    </div>
-                    
-                    <div style={{ 
-                      backgroundColor: '#f8fafc',
-                      padding: '0.75rem',
-                      borderRadius: '8px',
-                      border: '1px solid #e2e8f0'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <Calendar style={{ width: '1rem', height: '1rem', color: '#7c3aed' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>LAST ORDER</span>
-                      </div>
-                      <p style={{ fontWeight: '600', color: '#1e293b', fontSize: '0.875rem' }}>
-                        {formatDate(customer.lastOrderDate) || 'Never'}
-                      </p>
-                    </div>
                   </div>
 
                   <button
@@ -1123,44 +1110,6 @@ const CustomersPage = () => {
                         <Package style={{ width: '1.25rem', height: '1.25rem', color: '#3b82f6' }} />
                         All Orders
                       </h3>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button style={{
-                          backgroundColor: 'white',
-                          color: '#64748b',
-                          padding: '0.5rem 1rem',
-                          borderRadius: '6px',
-                          fontWeight: '500',
-                          border: '1px solid #e2e8f0',
-                          fontSize: '0.875rem',
-                          transition: 'all 0.2s ease',
-                          ':hover': {
-                            backgroundColor: '#f8fafc',
-                            borderColor: '#cbd5e1'
-                          }
-                        }}>
-                          Export
-                        </button>
-                        <button style={{
-                          backgroundColor: 'white',
-                          color: '#64748b',
-                          padding: '0.5rem 1rem',
-                          borderRadius: '6px',
-                          fontWeight: '500',
-                          border: '1px solid #e2e8f0',
-                          fontSize: '0.875rem',
-                          transition: 'all 0.2s ease',
-                          ':hover': {
-                            backgroundColor: '#f8fafc',
-                            borderColor: '#cbd5e1'
-                          },
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
-                        }}>
-                          <Filter style={{ width: '0.875rem', height: '0.875rem' }} />
-                          Filter
-                        </button>
-                      </div>
                     </div>
                     
                     {ordersLoading ? (
@@ -1206,6 +1155,7 @@ const CustomersPage = () => {
                         }}>
                           <div style={{ gridColumn: 'span 3' }}>Order #</div>
                           <div style={{ gridColumn: 'span 2' }}>Date</div>
+                          <div style={{ gridColumn: 'span 2' }}>Status</div>
                           <div style={{ gridColumn: 'span 2' }}>Price</div>
                           <div style={{ gridColumn: 'span 1' }}></div>
                         </div>
@@ -1241,6 +1191,16 @@ const CustomersPage = () => {
                             }}>
                               {formatDate(order.creationDate)}
                             </div>
+                            <div style={{ gridColumn: 'span 2' }}>
+                              <span style={{
+                                ...styles.badge,
+                                ...(order.status === 'completed' ? styles.badgeSuccess : 
+                                     order.status === 'pending' ? styles.badgeWarning : 
+                                     order.status === 'cancelled' ? styles.badgeDanger : styles.badgeInfo)
+                              }}>
+                                {order.status || 'N/A'}
+                              </span>
+                            </div>
                             <div style={{ 
                               gridColumn: 'span 2',
                               fontWeight: '600',
@@ -1253,17 +1213,18 @@ const CustomersPage = () => {
                               display: 'flex',
                               justifyContent: 'flex-end'
                             }}>
-                              <button style={{ 
-                                color: '#3b82f6',
-                                ':hover': {
-                                  color: '#2563eb'
-                                },
-                                padding: '0.25rem'
-                              }}>
-                                <Link to={`/orders/${order._id}`} style={{ padding: '0.25rem', color: '#3b82f6' }}>
-        <Eye style={{ width: '1.25rem', height: '1.25rem' }} />
-      </Link>
-                              </button>
+                              <Link 
+                                to={`/orders/${order._id}`} 
+                                style={{ 
+                                  padding: '0.25rem',
+                                  color: '#3b82f6',
+                                  ':hover': {
+                                    color: '#2563eb'
+                                  }
+                                }}
+                              >
+                                <Eye style={{ width: '1.25rem', height: '1.25rem' }} />
+                              </Link>
                             </div>
                           </div>
                         ))}
@@ -1342,60 +1303,37 @@ const CustomersPage = () => {
                               Personal Information
                             </h4>
                             <div style={{ ...styles.flexCol, gap: '1rem' }}>
-                              <div>
-                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Full Name</p>
-                                <p style={{ fontWeight: '500', color: '#1e293b' }}>
-                                  {selectedCustomer.receiverName || 'Not specified'}
-                                </p>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <User style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Full Name</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.receiverName || 'Not specified'}
+                                  </p>
+                                </div>
                               </div>
                               
-                              <div>
-                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Patient ID</p>
-                                <p style={{ fontWeight: '500', color: '#1e293b' }}>
-                                  {selectedCustomer.patientNumber || 'Not specified'}
-                                </p>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <Info style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Patient ID</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.patientNumber || 'Not specified'}
+                                  </p>
+                                </div>
                               </div>
                               
-                              <div>
-                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Phone Number</p>
-                                <p style={{ fontWeight: '500', color: '#1e293b' }}>
-                                  {selectedCustomer.receiverPhoneNumber || 'Not specified'}
-                                </p>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <Phone style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Phone Number</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.receiverPhoneNumber || 'Not specified'}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </div>
-                          
-                          <div>
-                            <h4 style={{ 
-                              fontSize: '0.75rem',
-                              fontWeight: '500',
-                              color: '#64748b',
-                              marginBottom: '0.5rem',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Contact Information
-                            </h4>
-                            <div style={{ ...styles.flexCol, gap: '1rem' }}>
-                              <div>
-                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Email</p>
-                                <p style={{ fontWeight: '500', color: '#1e293b' }}>
-                                  {selectedCustomer.email || 'Not specified'}
-                                </p>
-                              </div>
-                              
-                              <div>
-                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Address</p>
-                                <p style={{ fontWeight: '500', color: '#1e293b' }}>
-                                  {selectedCustomer.receiverAddress || 'Not specified'}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div style={{ ...styles.flexCol, gap: '1.5rem' }}>
-
                           
                           <div>
                             <h4 style={{ 
@@ -1409,11 +1347,84 @@ const CustomersPage = () => {
                               Medical Information
                             </h4>
                             <div style={{ ...styles.flexCol, gap: '1rem' }}>
-                              <div>
-                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Date of Birth</p>
-                                <p style={{ fontWeight: '500', color: '#1e293b' }}>
-                                  {selectedCustomer.dateOfBirth || "N/A"}
-                                </p>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <Calendar style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Date of Birth</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.dateOfBirth ? formatDate(selectedCustomer.dateOfBirth) : 'Not specified'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ ...styles.flexCol, gap: '1.5rem' }}>
+                          <div>
+                            <h4 style={{ 
+                              fontSize: '0.75rem',
+                              fontWeight: '500',
+                              color: '#64748b',
+                              marginBottom: '0.5rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px'
+                            }}>
+                              Contact Information
+                            </h4>
+                            <div style={{ ...styles.flexCol, gap: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <Mail style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Email</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.email || 'Not specified'}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <MapPin style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Address</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.receiverAddress || 'Not specified'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <h4 style={{ 
+                              fontSize: '0.75rem',
+                              fontWeight: '500',
+                              color: '#64748b',
+                              marginBottom: '0.5rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px'
+                            }}>
+                              Order Statistics
+                            </h4>
+                            <div style={{ ...styles.flexCol, gap: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <CreditCard style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Total Orders</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.totalOrders || 0}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <Calendar style={{ width: '1rem', height: '1rem', color: '#94a3b8', flexShrink: 0, marginTop: '0.25rem' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Last Order</p>
+                                  <p style={{ fontWeight: '500', color: '#1e293b' }}>
+                                    {selectedCustomer.lastOrderDate ? formatDate(selectedCustomer.lastOrderDate) : 'N/A'}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1432,6 +1443,7 @@ const CustomersPage = () => {
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px'
                         }}>
+                          Additional Notes
                         </h4>
                         <p style={{ 
                           color: '#475569',

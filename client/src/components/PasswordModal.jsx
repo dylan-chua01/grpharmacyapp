@@ -6,14 +6,28 @@ const PasswordModal = ({ onSuccess }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
+    sessionStorage.removeItem('userRole');
+
+
+    let role = null;
+
+    // Check password and assign role
     if (password === 'gorush123') {
-      onSuccess('gorush');
+      role = 'gorush';
     } else if (password === 'jpmc123') {
-      onSuccess('jpmc');
+      role = 'jpmc';
+    } else if (password === 'moh123') {
+      role = 'moh';
     } else {
       setError('Invalid password');
+      return;
     }
+
+    // Save role and pass to parent
+    sessionStorage.setItem('userRole', role);
+    console.log('✅ Logged in as role:', role);
+    onSuccess(role);
   };
 
   const handleKeyPress = (e) => {
@@ -48,7 +62,7 @@ const PasswordModal = ({ onSuccess }) => {
             value={password}
             onChange={e => {
               setPassword(e.target.value);
-              setError(''); // Clear error when user types
+              setError('');
             }}
             onKeyPress={handleKeyPress}
             placeholder="Enter password"
@@ -98,7 +112,8 @@ const PasswordModal = ({ onSuccess }) => {
         }}>
           <strong>Access Levels:</strong><br />
           • Go Rush: Full system access<br />
-          • JPMC: Collection dates only
+          • JPMC: JPMC Specific Access<br />
+          • MOH: MOH Specific Access
         </div>
       </div>
     </div>

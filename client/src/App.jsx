@@ -30,7 +30,7 @@ function App() {
   };
 
   // Protected Route Component
-  const ProtectedRoute = ({ children, allowedRoles = ['gorush', 'jpmc'] }) => {
+  const ProtectedRoute = ({ children, allowedRoles = ['gorush', 'jpmc', 'moh'] }) => {
     if (!userRole) {
       return null; // Don't render anything while password modal is shown
     }
@@ -57,7 +57,7 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="orders" element={
-            <ProtectedRoute allowedRoles={['gorush', 'jpmc']}>
+            <ProtectedRoute allowedRoles={['gorush', 'jpmc', 'moh']}>
               <OrdersPage />
             </ProtectedRoute>
           } />
@@ -72,17 +72,17 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="today" element={
-            <ProtectedRoute allowedRoles={['gorush', 'jpmc']}>
+            <ProtectedRoute allowedRoles={['gorush', 'jpmc', 'moh']}>
               <Today />
             </ProtectedRoute>
           } />
           <Route path="collection" element={
-            <ProtectedRoute allowedRoles={['gorush', 'jpmc']}>
+            <ProtectedRoute allowedRoles={['gorush', 'jpmc', 'moh']}>
               <CollectionDatesPage />
             </ProtectedRoute>
           } />
           <Route path="/orders/:id" element={
-            <ProtectedRoute allowedRoles={['gorush', 'jpmc']}>
+            <ProtectedRoute allowedRoles={['gorush', 'jpmc', 'moh']}>
               <OrderDetails />
             </ProtectedRoute>
           } />

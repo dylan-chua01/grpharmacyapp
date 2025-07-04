@@ -8,13 +8,14 @@ import {
   Clock, 
   User, 
   MapPin, 
-  Phone,
   Eye,
   X,
   ChevronDown,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 
 const Today = () => {
@@ -26,57 +27,198 @@ const Today = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [roleInitialized, setRoleInitialized] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const [bulkCollectionDate, setBulkCollectionDate] = useState('');
+  const navigate = useNavigate();
 
+  // Role management - FIXED to use sessionStorage consistently
+  const getUserRole = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roleFromUrl = urlParams.get('role');
+    
+    let currentRole = 'jpmc'; // default
+    
+    if (roleFromUrl) {
+      currentRole = roleFromUrl.toLowerCase();
+      // CHANGED: Use sessionStorage instead of localStorage
+      sessionStorage.setItem('userRole', currentRole);
+    } else {
+      // CHANGED: Use sessionStorage instead of localStorage
+      const roleFromStorage = sessionStorage.getItem('userRole');
+      if (roleFromStorage) {
+        currentRole = roleFromStorage.toLowerCase();
+      }
+    }
+    
+    setUserRole(currentRole);
+    setRoleInitialized(true);
+    return currentRole;
+  };
+
+  const toggleSelectAll = () => {
+  if (isAllSelected) {
+    setSelectedOrders([]);
+  } else {
+    setSelectedOrders(filteredOrders.map(order => order._id));
+  }
+  setIsAllSelected(!isAllSelected);
+};
+
+
+const handleBulkCollectionDateUpdate = async () => {
+  if (!bulkCollectionDate) {
+    alert('Please select a collection date');
+    return;
+  }
+
+  try {
+    const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
+    const promises = selectedOrders.map(orderId => 
+      fetch(`http://localhost:5050/api/orders/${orderId}/collection-date`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Role': currentRole
+        },
+        body: JSON.stringify({ collectionDate: bulkCollectionDate })
+      })
+    );
+
+    const responses = await Promise.all(promises);
+    const results = await Promise.all(responses.map(res => res.json()));
+
+    // Update local state
+    setOrders(orders.map(order => {
+      const updatedOrder = results.find(r => r._id === order._id);
+      return updatedOrder ? updatedOrder : order;
+    }));
+
+    // Reset selection
+    setSelectedOrders([]);
+    setIsAllSelected(false);
+    setBulkCollectionDate('');
+    
+    alert(`Successfully updated ${results.length} orders!`);
+  } catch (error) {
+    console.error('Error updating bulk collection dates:', error);
+    alert(`Error: ${error.message}`);
+  }
+};
+
+
+  const toggleOrderSelection = (orderId) => {
+  setSelectedOrders(prev => 
+    prev.includes(orderId) 
+      ? prev.filter(id => id !== orderId)
+      : [...prev, orderId]
+  );
+};
+
+useEffect(() => {
+  // Reset selection when orders change
+  setSelectedOrders([]);
+  setIsAllSelected(false);
+}, [orders]);
+
+
+  // Initialize role on component mount
   useEffect(() => {
-    fetchTodaysOrders();
+    getUserRole();
   }, []);
+
+  // Fetch orders when role changes
+  useEffect(() => {
+    if (roleInitialized && userRole) {
+      fetchTodaysOrders();
+    }
+  }, [userRole, roleInitialized]);
 
   useEffect(() => {
     filterOrders();
   }, [orders, searchTerm, statusFilter]);
 
-  const fetchTodaysOrders = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('http://localhost:5050/api/orders');
-      if (!response.ok) {
-        throw new Error('Failed to fetch orders');
+
+const fetchTodaysOrders = async () => {
+  setLoading(true);
+  setError(null);
+  
+  try {
+    const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
+    console.log('Fetching orders as:', currentRole); // Debug log
+    
+    const response = await fetch('http://localhost:5050/api/orders', {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Role': currentRole
       }
-      const allOrders = await response.json();
-      
-      // Filter orders for today
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      const todaysOrders = allOrders.filter(order => {
-        if (!order.dateTimeSubmission) return false;
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch orders: ${response.statusText}`);
+    }
+    
+    const allOrders = await response.json();
+    console.log('Received orders:', allOrders)
+    
+    // Filter orders for today with more robust date handling
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todaysOrders = allOrders.filter(order => {
+      try {
+        const dateField = order.creationDate || order.dateTimeSubmission;
+        if (!dateField) return false;
         
-        // Handle different date formats
         let orderDate;
-        if (order.creationDate.includes('T')) {
-          orderDate = new Date(order.creationDate).toISOString().split('T')[0];
-        } else {
-          // Assume format is already YYYY-MM-DD or similar
-          orderDate = order.creationDate.split(' ')[0];
+        if (typeof dateField === 'string') {
+          // Handle ISO strings
+          if (dateField.includes('T')) {
+            orderDate = new Date(dateField);
+          } 
+          // Handle date strings like "MM/DD/YYYY"
+          else if (dateField.includes('/')) {
+            const parts = dateField.split('/');
+            if (parts.length === 3) {
+              orderDate = new Date(parts[2], parts[0] - 1, parts[1]);
+            } else {
+              return false;
+            }
+          }
+          // Handle other formats
+          else {
+            orderDate = new Date(dateField);
+          }
+        } 
+        // Handle Date objects
+        else if (dateField instanceof Date) {
+          orderDate = dateField;
         }
         
-        return orderDate === todayStr;
-      });
-      
-      setOrders(todaysOrders);
-    } catch (err) {
-      setError(err.message);
-      console.error('Failed to fetch orders:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (!orderDate || isNaN(orderDate.getTime())) return false;
+        
+        orderDate.setHours(0, 0, 0, 0);
+        return orderDate.getTime() === today.getTime();
+      } catch (error) {
+        console.warn('Could not parse date:', dateField, error);
+        return false;
+      }
+    });
+    
+    setOrders(todaysOrders);
+  } catch (err) {
+    setError(err.message);
+    console.error('Full error:', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const filterOrders = () => {
     let filtered = [...orders];
 
-    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(order =>
         order.receiverName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,10 +228,9 @@ const Today = () => {
       );
     }
 
-    // Apply status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(order => 
-        order.status?.toLowerCase() === statusFilter.toLowerCase()
+        order.goRushStatus?.toLowerCase() === statusFilter.toLowerCase()
       );
     }
 
@@ -102,11 +243,10 @@ const Today = () => {
       pending: 0,
       processing: 0,
       completed: 0,
-      shipped: 0
     };
 
     orders.forEach(order => {
-      const status = order.status?.toLowerCase();
+      const status = order.goRushStatus?.toLowerCase();
       if (counts.hasOwnProperty(status)) {
         counts[status]++;
       }
@@ -115,451 +255,81 @@ const Today = () => {
     return counts;
   };
 
-  const statusCounts = getStatusCounts();
+  const updateCollectionDate = async (orderId, collectionDate) => {
+    try {
+      // FIXED: Ensure userRole is available and add fallback
+      const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
+      
+      const response = await fetch(
+        `http://localhost:5050/api/orders/${orderId}/collection-date`,
+        {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-User-Role': currentRole // FIXED: Use currentRole with fallback
+          },
+          body: JSON.stringify({ collectionDate })
+        }
+      );
 
-  // Inline styles
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      backgroundColor: '#f9fafb',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    },
-    header: {
-      backgroundColor: 'white',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      borderBottom: '1px solid #e5e7eb'
-    },
-    headerContainer: {
-      maxWidth: '1280px',
-      margin: '0 auto',
-      padding: '0 16px'
-    },
-    headerContent: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '24px 0'
-    },
-    title: {
-      fontSize: '30px',
-      fontWeight: 'bold',
-      color: '#111827',
-      margin: 0,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px'
-    },
-    subtitle: {
-      color: '#6b7280',
-      marginTop: '4px',
-      fontSize: '16px'
-    },
-    refreshButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      backgroundColor: '#2563eb',
-      color: 'white',
-      padding: '10px 20px',
-      borderRadius: '8px',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '500',
-      transition: 'background-color 0.2s'
-    },
-    mainContainer: {
-      maxWidth: '1280px',
-      margin: '0 auto',
-      padding: '32px 16px'
-    },
-    loadingContainer: {
-      minHeight: '400px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-    },
-    loadingContent: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px'
-    },
-    errorAlert: {
-      backgroundColor: '#fef2f2',
-      border: '1px solid #fecaca',
-      borderRadius: '8px',
-      padding: '16px',
-      marginBottom: '24px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px'
-    },
-    errorText: {
-      color: '#991b1b',
-      margin: 0
-    },
-    errorButton: {
-      marginLeft: 'auto',
-      color: '#dc2626',
-      backgroundColor: 'transparent',
-      border: '1px solid #dc2626',
-      padding: '6px 12px',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    statsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '20px',
-      marginBottom: '32px'
-    },
-    statCard: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '20px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f3f4f6',
-      transition: 'transform 0.2s, box-shadow 0.2s'
-    },
-    statCardHover: {
-      transform: 'translateY(-2px)',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-    },
-    statHeader: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: '8px'
-    },
-    statTitle: {
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#6b7280',
-      margin: 0
-    },
-    statValue: {
-      fontSize: '24px',
-      fontWeight: 'bold',
-      color: '#111827',
-      margin: 0
-    },
-    statIcon: {
-      padding: '8px',
-      borderRadius: '8px'
-    },
-    controlsContainer: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '24px',
-      marginBottom: '24px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f3f4f6'
-    },
-    controlsHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '20px'
-    },
-    controlsTitle: {
-      fontSize: '18px',
-      fontWeight: '600',
-      color: '#111827',
-      margin: 0
-    },
-    filtersToggle: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      backgroundColor: '#f3f4f6',
-      color: '#374151',
-      padding: '8px 12px',
-      borderRadius: '6px',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '14px',
-      transition: 'background-color 0.2s'
-    },
-    controlsContent: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: '20px',
-      alignItems: 'end'
-    },
-    searchContainer: {
-      position: 'relative'
-    },
-    searchInput: {
-      width: '80%',
-      paddingLeft: '40px',
-      paddingRight: '16px',
-      paddingTop: '10px',
-      paddingBottom: '10px',
-      border: '1px solid #d1d5db',
-      borderRadius: '8px',
-      fontSize: '14px',
-      outline: 'none',
-      transition: 'border-color 0.2s'
-    },
-    searchIcon: {
-      position: 'absolute',
-      left: '12px',
-      top: '65%',
-      transform: 'translateY(-50%)',
-      color: '#9ca3af',
-      width: '18px',
-      height: '18px'
-    },
-    filterSelect: {
-      width: '100%',
-      padding: '10px 12px',
-      border: '1px solid #d1d5db',
-      borderRadius: '8px',
-      fontSize: '14px',
-      backgroundColor: 'white',
-      cursor: 'pointer',
-      outline: 'none',
-      transition: 'border-color 0.2s'
-    },
-    filterLabel: {
-      display: 'block',
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#374151',
-      marginBottom: '6px'
-    },
-    ordersContainer: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f3f4f6',
-      overflow: 'hidden'
-    },
-    ordersHeader: {
-      backgroundColor: '#f8fafc',
-      padding: '20px 24px',
-      borderBottom: '1px solid #f3f4f6'
-    },
-    ordersTitle: {
-      fontSize: '18px',
-      fontWeight: '600',
-      color: '#111827',
-      margin: 0
-    },
-    ordersSubtitle: {
-      fontSize: '14px',
-      color: '#6b7280',
-      marginTop: '4px'
-    },
-    ordersTable: {
-      width: '100%',
-      borderCollapse: 'collapse'
-    },
-    tableHeader: {
-      backgroundColor: '#f9fafb'
-    },
-    tableHeaderCell: {
-      padding: '16px',
-      textAlign: 'left',
-      fontSize: '14px',
-      fontWeight: '600',
-      color: '#374151',
-      borderBottom: '1px solid #e5e7eb'
-    },
-    tableRow: {
-      borderBottom: '1px solid #f3f4f6',
-      transition: 'background-color 0.2s',
-      cursor: 'pointer'
-    },
-    tableCell: {
-      padding: '16px',
-      fontSize: '14px',
-      color: '#374151',
-      verticalAlign: 'top'
-    },
-    statusBadge: {
-      padding: '4px 12px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: '500',
-      textTransform: 'capitalize'
-    },
-    statusCompleted: {
-      backgroundColor: '#dcfce7',
-      color: '#166534'
-    },
-    statusPending: {
-      backgroundColor: '#fef3c7',
-      color: '#92400e'
-    },
-    statusProcessing: {
-      backgroundColor: '#dbeafe',
-      color: '#1e40af'
-    },
-    statusShipped: {
-      backgroundColor: '#e0e7ff',
-      color: '#5b21b6'
-    },
-    trackingNumber: {
-      fontFamily: 'monospace',
-      backgroundColor: '#f3f4f6',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '13px',
-      fontWeight: '500'
-    },
-    viewButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      backgroundColor: '#2563eb',
-      color: 'white',
-      padding: '6px 12px',
-      borderRadius: '6px',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '12px',
-      fontWeight: '500',
-      transition: 'background-color 0.2s'
-    },
-    emptyState: {
-      textAlign: 'center',
-      padding: '48px 24px',
-      color: '#6b7280'
-    },
-    emptyIcon: {
-      width: '48px',
-      height: '48px',
-      margin: '0 auto 16px',
-      opacity: 0.5
-    },
-    // Modal styles
-    modalOverlay: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px'
-    },
-    modalContent: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-      maxWidth: '900px',
-      width: '100%',
-      maxHeight: '90vh',
-      overflowY: 'auto'
-    },
-    modalHeader: {
-      padding: '24px',
-      borderBottom: '1px solid #f3f4f6',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      backgroundColor: '#f8fafc'
-    },
-    modalTitle: {
-      fontSize: '20px',
-      fontWeight: '600',
-      color: '#111827',
-      margin: 0
-    },
-    modalCloseButton: {
-      backgroundColor: 'transparent',
-      border: 'none',
-      fontSize: '24px',
-      cursor: 'pointer',
-      color: '#6b7280',
-      padding: '4px',
-      borderRadius: '4px',
-      transition: 'background-color 0.2s'
-    },
-    modalBody: {
-      padding: '24px'
-    },
-    detailsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-      gap: '24px'
-    },
-    detailSection: {
-      backgroundColor: '#f9fafb',
-      padding: '20px',
-      borderRadius: '8px',
-      border: '1px solid #f3f4f6'
-    },
-    sectionTitle: {
-      fontSize: '16px',
-      fontWeight: '600',
-      color: '#111827',
-      marginBottom: '16px',
-      paddingBottom: '8px',
-      borderBottom: '2px solid #e5e7eb',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px'
-    },
-    detailRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: '12px',
-      gap: '12px'
-    },
-    detailLabel: {
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#6b7280',
-      minWidth: '120px',
-      flexShrink: 0
-    },
-    detailValue: {
-      fontSize: '14px',
-      color: '#111827',
-      fontWeight: '400',
-      textAlign: 'right',
-      wordBreak: 'break-word'
-    },
-    detailValueMono: {
-      fontSize: '13px',
-      color: '#111827',
-      fontWeight: '500',
-      textAlign: 'right',
-      fontFamily: 'monospace',
-      backgroundColor: '#f3f4f6',
-      padding: '4px 8px',
-      borderRadius: '4px'
+      if (!response.ok) {
+        throw new Error(`Failed to update collection date: ${response.statusText}`);
+      }
+
+      const updatedOrder = await response.json();
+      
+      setOrders(orders.map(order => 
+        order._id === updatedOrder._id ? updatedOrder : order
+      ));
+      setSelectedOrder(updatedOrder);
+      
+      alert('Collection date updated successfully!');
+    } catch (error) {
+      console.error('Error updating collection date:', error);
+      alert(`Error: ${error.message}`);
     }
   };
 
+  const changeRole = (newRole) => {
+    // CHANGED: Use sessionStorage instead of localStorage
+    sessionStorage.setItem('userRole', newRole);
+    setUserRole(newRole);
+    setRoleInitialized(true);
+  };
+
+  const statusCounts = getStatusCounts();
+
   const getStatusStyle = (status) => {
-    const baseStyle = styles.statusBadge;
+    const baseStyle = {
+      padding: '4px 8px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: '500',
+      textTransform: 'capitalize'
+    };
+    
     switch (status?.toLowerCase()) {
       case 'completed':
-        return { ...baseStyle, ...styles.statusCompleted };
+        return { ...baseStyle, backgroundColor: '#dcfce7', color: '#166534' };
       case 'pending':
-        return { ...baseStyle, ...styles.statusPending };
+        return { ...baseStyle, backgroundColor: '#fef3c7', color: '#a16207' };
       case 'processing':
-        return { ...baseStyle, ...styles.statusProcessing };
-      case 'shipped':
-        return { ...baseStyle, ...styles.statusShipped };
+        return { ...baseStyle, backgroundColor: '#dbeafe', color: '#1d4ed8' };
       default:
         return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#6b7280' };
     }
   };
 
   const getStatIconStyle = (type) => {
-    const baseStyle = styles.statIcon;
+    const baseStyle = {
+      width: '40px',
+      height: '40px',
+      borderRadius: '8px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    };
+    
     switch (type) {
       case 'total':
         return { ...baseStyle, backgroundColor: '#dbeafe' };
@@ -569,157 +339,277 @@ const Today = () => {
         return { ...baseStyle, backgroundColor: '#dbeafe' };
       case 'completed':
         return { ...baseStyle, backgroundColor: '#dcfce7' };
-      case 'shipped':
-        return { ...baseStyle, backgroundColor: '#e0e7ff' };
       default:
         return { ...baseStyle, backgroundColor: '#f3f4f6' };
     }
   };
 
-  const formatTime = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    } catch {
-      return dateString;
+  const getRoleDisplayName = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'moh': return 'MOH (Ministry of Health)';
+      case 'jpmc': return 'JPMC (Jerudong Park Medical Centre)';
+      case 'gorush': return 'Go Rush (All Products)';
+      default: return role?.toUpperCase() || 'Unknown';
     }
   };
 
-  if (loading) {
+  const getProductFilter = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'moh': return 'pharmacymoh';
+      case 'jpmc': return 'pharmacyjpmc';
+      case 'gorush': return 'all products';
+      default: return 'unknown';
+    }
+  };
+
+  if (loading || !roleInitialized) {
     return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <div style={styles.headerContainer}>
-            <div style={styles.headerContent}>
-              <div>
-                <h1 style={styles.title}>
-                  <Calendar style={{ width: '28px', height: '28px', color: '#2563eb' }} />
-                  Today's Orders
-                </h1>
-                <p style={styles.subtitle}>Orders placed today - {new Date().toLocaleDateString()}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={styles.mainContainer}>
-          <div style={styles.loadingContainer}>
-            <div style={styles.loadingContent}>
-              <RefreshCw style={{ width: '24px', height: '24px', color: '#2563eb' }} />
-              <span style={{ fontSize: '16px', color: '#6b7280' }}>Loading today's orders...</span>
-            </div>
-          </div>
+      <div style={{ padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          minHeight: '400px',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <RefreshCw style={{ width: '32px', height: '32px', color: '#2563eb', animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: '16px', color: '#6b7280' }}>Loading today's orders...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
+    <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
       {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerContainer}>
-          <div style={styles.headerContent}>
-            <div>
-              <h1 style={styles.title}>
-                <Calendar style={{ width: '28px', height: '28px', color: '#2563eb' }} />
-                Today's Orders
-              </h1>
-              <p style={styles.subtitle}>Orders placed today - {new Date().toLocaleDateString()}</p>
-            </div>
+      <div style={{ 
+        backgroundColor: 'white', 
+        borderBottom: '1px solid #e2e8f0', 
+        padding: '16px 24px',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ 
+              margin: 0, 
+              fontSize: '24px', 
+              fontWeight: '600', 
+              color: '#1f2937',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <Calendar style={{ width: '28px', height: '28px', color: '#2563eb' }} />
+              Today's Orders
+            </h1>
+            <p style={{ 
+              margin: '4px 0 0', 
+              fontSize: '14px', 
+              color: '#6b7280'
+            }}>
+              {getRoleDisplayName(userRole)} • {new Date().toLocaleDateString()} • Filter: {getProductFilter(userRole)}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <select 
+              value={userRole || ''} 
+              onChange={(e) => changeRole(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                backgroundColor: '#f9fafb',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+            >
+              <option value="jpmc">JPMC</option>
+              <option value="moh">MOH</option>
+              <option value="gorush">Go Rush</option>
+            </select>
             <button
               onClick={fetchTodaysOrders}
-              style={styles.refreshButton}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                backgroundColor: '#2563eb',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
               onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
               onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
             >
               <RefreshCw style={{ width: '16px', height: '16px' }} />
-              <span>Refresh</span>
+              Refresh
             </button>
           </div>
         </div>
       </div>
 
-      <div style={styles.mainContainer}>
+      <div style={{ padding: '24px' }}>
         {error && (
-          <div style={styles.errorAlert}>
+          <div style={{
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
             <AlertCircle style={{ width: '20px', height: '20px', color: '#dc2626' }} />
-            <p style={styles.errorText}>Failed to load orders: {error}</p>
-            <button onClick={fetchTodaysOrders} style={styles.errorButton}>
-              Retry
-            </button>
+            <div>
+              <p style={{ margin: 0, fontWeight: '500', color: '#991b1b' }}>
+                Failed to load orders: {error}
+              </p>
+              <button 
+                onClick={fetchTodaysOrders}
+                style={{
+                  marginTop: '8px',
+                  padding: '6px 12px',
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                Retry
+              </button>
+            </div>
           </div>
         )}
 
         {/* Statistics */}
-        <div style={styles.statsGrid}>
-          <div style={styles.statCard}>
-            <div style={styles.statHeader}>
-              <h3 style={styles.statTitle}>Total Orders</h3>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+          gap: '20px',
+          marginBottom: '24px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
+                  Total Orders
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#1f2937' }}>
+                  {statusCounts.all}
+                </p>
+              </div>
               <div style={getStatIconStyle('total')}>
                 <Package style={{ width: '20px', height: '20px', color: '#2563eb' }} />
               </div>
             </div>
-            <p style={styles.statValue}>{statusCounts.all}</p>
           </div>
 
-          <div style={styles.statCard}>
-            <div style={styles.statHeader}>
-              <h3 style={styles.statTitle}>Pending</h3>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
+                  Pending
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#eab308' }}>
+                  {statusCounts.pending}
+                </p>
+              </div>
               <div style={getStatIconStyle('pending')}>
                 <Clock style={{ width: '20px', height: '20px', color: '#eab308' }} />
               </div>
             </div>
-            <p style={{...styles.statValue, color: '#eab308'}}>{statusCounts.pending}</p>
           </div>
 
-          <div style={styles.statCard}>
-            <div style={styles.statHeader}>
-              <h3 style={styles.statTitle}>Processing</h3>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
+                  Processing
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#2563eb' }}>
+                  {statusCounts.processing}
+                </p>
+              </div>
               <div style={getStatIconStyle('processing')}>
                 <TrendingUp style={{ width: '20px', height: '20px', color: '#2563eb' }} />
               </div>
             </div>
-            <p style={{...styles.statValue, color: '#2563eb'}}>{statusCounts.processing}</p>
           </div>
 
-          <div style={styles.statCard}>
-            <div style={styles.statHeader}>
-              <h3 style={styles.statTitle}>Completed</h3>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
+                  Completed
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#16a34a' }}>
+                  {statusCounts.completed}
+                </p>
+              </div>
               <div style={getStatIconStyle('completed')}>
                 <Package style={{ width: '20px', height: '20px', color: '#16a34a' }} />
               </div>
             </div>
-            <p style={{...styles.statValue, color: '#16a34a'}}>{statusCounts.completed}</p>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={styles.statHeader}>
-              <h3 style={styles.statTitle}>Shipped</h3>
-              <div style={getStatIconStyle('shipped')}>
-                <Package style={{ width: '20px', height: '20px', color: '#7c3aed' }} />
-              </div>
-            </div>
-            <p style={{...styles.statValue, color: '#7c3aed'}}>{statusCounts.shipped}</p>
           </div>
         </div>
 
-        {/* Controls */}
-        <div style={styles.controlsContainer}>
-          <div style={styles.controlsHeader}>
-            <h3 style={styles.controlsTitle}>Search & Filter</h3>
+        {/* Search and Filters */}
+        <div style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          marginBottom: '24px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
+              Search & Filter
+            </h3>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              style={styles.filtersToggle}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#e5e7eb'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px',
+                backgroundColor: '#f3f4f6',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
             >
               <Filter style={{ width: '16px', height: '16px' }} />
-              <span>Filters</span>
+              Filters
               <ChevronDown style={{ 
                 width: '16px', 
                 height: '16px',
@@ -730,436 +620,616 @@ const Today = () => {
           </div>
 
           {showFilters && (
-            <div style={styles.controlsContent}>
-              <div style={styles.searchContainer}>
-                <label style={styles.filterLabel}>Search Orders</label>
-                <Search style={styles.searchIcon} />
-                <input
-                  type="text"
-                  placeholder="Search by customer, patient number, tracking..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={styles.searchInput}
-                  onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                />
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                  Search Orders
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Search style={{ 
+                    position: 'absolute', 
+                    left: '12px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)',
+                    width: '16px', 
+                    height: '16px', 
+                    color: '#6b7280' 
+                  }} />
+                  <input
+                    type="text"
+                    placeholder="Search by name, patient #, tracking..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 10px 10px 40px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ minWidth: '150px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                  Status Filter
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="processing">Processing</option>
+                  <option value="completed">Completed</option>
+                </select>
               </div>
             </div>
           )}
         </div>
 
-        {/* Orders Table */}
-        {/* Orders Table */}
-<div style={styles.ordersContainer}>
-  <div style={styles.ordersHeader}>
-    <h3 style={styles.ordersTitle}>Orders ({filteredOrders.length})</h3>
-    <p style={styles.ordersSubtitle}>
-      {filteredOrders.length} of {orders.length} orders shown
-    </p>
+        {selectedOrders.length > 0 && (
+  <div style={{
+    backgroundColor: '#e0f2fe',
+    padding: '12px 24px',
+    marginBottom: '16px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span style={{ fontWeight: '500' }}>
+        {selectedOrders.length} order{selectedOrders.length !== 1 ? 's' : ''} selected
+      </span>
+    </div>
+    
+    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div>
+        <label style={{ marginRight: '8px', fontSize: '14px' }}>Collection Date:</label>
+        <input
+          type="date"
+          value={bulkCollectionDate}
+          onChange={(e) => setBulkCollectionDate(e.target.value)}
+          style={{
+            padding: '8px',
+            border: '1px solid #d1d5db',
+            borderRadius: '4px'
+          }}
+        />
+      </div>
+      
+      <button
+        onClick={handleBulkCollectionDateUpdate}
+        style={{
+          padding: '8px 16px',
+          backgroundColor: '#2563eb',
+          color: 'white',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          fontWeight: '500',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
+      >
+        Apply to Selected
+      </button>
+      
+      <button
+        onClick={() => {
+          setSelectedOrders([]);
+          setIsAllSelected(false);
+        }}
+        style={{
+          padding: '8px 16px',
+          backgroundColor: 'transparent',
+          border: '1px solid #d1d5db',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+      >
+        Cancel
+      </button>
+    </div>
   </div>
+)}
 
-  {filteredOrders.length > 0 ? (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={styles.ordersTable}>
-        <thead style={styles.tableHeader}>
-          <tr>
-            <th style={styles.tableHeaderCell}>Created On</th>
-            <th style={styles.tableHeaderCell}>Tracking #</th>
-            <th style={styles.tableHeaderCell}>Patient Name</th>
-            <th style={styles.tableHeaderCell}>Patient #</th>
-            <th style={styles.tableHeaderCell}>Phone</th>
-            <th style={styles.tableHeaderCell}>Payment Method</th>
-            <th style={styles.tableHeaderCell}>Delivery Type</th>
-            <th style={styles.tableHeaderCell}>Amount</th>
-            <th style={styles.tableHeaderCell}>Status</th>
-            <th style={styles.tableHeaderCell}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredOrders.map((order, index) => (
-            <tr 
-              key={order._id} 
-              style={styles.tableRow}
-              onMouseEnter={(e) => e.target.closest('tr').style.backgroundColor = '#f9fafb'}
-              onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = 'transparent'}
-            >
-              <td style={styles.tableCell}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Clock style={{ width: '14px', height: '14px', color: '#6b7280' }} />
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>
-                    {order.dateTimeSubmission}
+
+        {/* Orders Table */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
+                Orders ({filteredOrders.length})
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                {filteredOrders.length} of {orders.length} orders shown
+              </p>
+            </div>
+          </div>
+
+          {filteredOrders.length > 0 ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ backgroundColor: '#f8fafc' }}>
+                  <tr>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', width: '40px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Date/Time
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Tracking #
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Patient
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Phone
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Payment
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Status
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Actions
+                    </th>                  
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.map((order, index) => (
+                    <tr 
+                      key={order._id} 
+                      style={{ 
+                        borderBottom: '1px solid #e2e8f0',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.closest('tr').style.backgroundColor = '#f9fafb'}
+                      onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = 'transparent'}
+                    >
+                      <td style={{ padding: '12px', width: '40px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(order._id)}
+                          onChange={() => toggleOrderSelection(order._id)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Clock style={{ width: '14px', height: '14px', color: '#6b7280' }} />
+                          <span style={{ fontSize: '13px', fontWeight: '500' }}>
+                            {order.dateTimeSubmission || order.creationDate || 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ 
+                          fontFamily: 'monospace', 
+                          fontSize: '13px', 
+                          backgroundColor: '#f1f5f9',
+                          padding: '2px 6px',
+                          borderRadius: '4px'
+                        }}>
+                          {order.doTrackingNumber || 'N/A'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <div>
+                          <p style={{ margin: 0, fontWeight: '500', fontSize: '14px' }}>
+                            {order.receiverName || 'N/A'}
+                          </p>
+                          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b7280' }}>
+                            #{order.patientNumber || 'N/A'}
+                          </p>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ fontSize: '13px' }}>
+                          {order.receiverPhoneNumber || 'N/A'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '13px' }}>
+                            {order.paymentMethod || 'N/A'}
+                          </p>
+                          <p style={{ margin: '4px 0 0', fontSize: '12px', fontWeight: '600', color: '#059669' }}>
+                            ${order.paymentAmount || '0.00'}
+                          </p>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={getStatusStyle(order.goRushStatus)}>
+                          {order.goRushStatus || 'Unknown'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => setSelectedOrder(order)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '6px 12px',
+                              backgroundColor: '#2563eb',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Eye style={{ width: '12px', height: '12px' }} />
+                            View
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ 
+              padding: '60px 20px', 
+              textAlign: 'center',
+              color: '#6b7280'
+            }}>
+              <Package style={{ width: '48px', height: '48px', margin: '0 auto 16px', color: '#d1d5db' }} />
+              <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: '600' }}>
+                No orders found
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px' }}>
+                {searchTerm || statusFilter !== 'all' 
+                  ? 'Try adjusting your search or filter criteria' 
+                  : 'There are no orders placed today'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setSelectedOrder(null)}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            width: '100%',
+            maxWidth: '800px',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid #e2e8f0'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#1f2937' }}>
+                Order Details - {selectedOrder.doTrackingNumber || 'N/A'}
+              </h2>
+              <button 
+                onClick={() => setSelectedOrder(null)} 
+                style={{
+                  padding: '8px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                  <X style={{ width: '20px', height: '20px', color: '#6b7280' }} />
+                  </button>
+                  </div>
+                          <div style={{ padding: '24px' }}>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '24px',
+            marginBottom: '24px'
+          }}>
+            {/* Patient Information */}
+            <div>
+              <h3 style={{ 
+                margin: '0 0 16px', 
+                fontSize: '16px', 
+                fontWeight: '600',
+                color: '#1f2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <User style={{ width: '16px', height: '16px' }} />
+                Patient Information
+              </h3>
+              <div style={{ 
+                backgroundColor: '#f9fafb', 
+                borderRadius: '6px', 
+                padding: '16px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 4px', 
+                      fontSize: '12px', 
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      Full Name
+                    </p>
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>
+                      {selectedOrder.receiverName || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 4px', 
+                      fontSize: '12px', 
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      Patient Number
+                    </p>
+                    <p style={{ margin: 0, fontSize: '14px' }}>
+                      {selectedOrder.patientNumber || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 4px', 
+                      fontSize: '12px', 
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      Phone Number
+                    </p>
+                    <p style={{ margin: 0, fontSize: '14px' }}>
+                      {selectedOrder.receiverPhoneNumber || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery Information */}
+            <div>
+              <h3 style={{ 
+                margin: '0 0 16px', 
+                fontSize: '16px', 
+                fontWeight: '600',
+                color: '#1f2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <MapPin style={{ width: '16px', height: '16px' }} />
+                Delivery Information
+              </h3>
+              <div style={{ 
+                backgroundColor: '#f9fafb', 
+                borderRadius: '6px', 
+                padding: '16px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 4px', 
+                      fontSize: '12px', 
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      Address
+                    </p>
+                    <p style={{ margin: 0, fontSize: '14px' }}>
+                      {selectedOrder.receiverAddress || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 4px', 
+                      fontSize: '12px', 
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      Collection Date
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="date"
+                        value={selectedOrder.collectionDate || ''}
+                        onChange={(e) => updateCollectionDate(selectedOrder._id, e.target.value)}
+                        style={{
+                          padding: '6px 8px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Order Details */}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ 
+              margin: '0 0 16px', 
+              fontSize: '16px', 
+              fontWeight: '600',
+              color: '#1f2937',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Package style={{ width: '16px', height: '16px' }} />
+              Order Details
+            </h3>
+            <div style={{ 
+              backgroundColor: '#f9fafb', 
+              borderRadius: '6px', 
+              padding: '16px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <p style={{ 
+                    margin: '0 0 4px', 
+                    fontSize: '12px', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Tracking Number
+                  </p>
+                  <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>
+                    {selectedOrder.doTrackingNumber || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ 
+                    margin: '0 0 4px', 
+                    fontSize: '12px', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Medication
+                  </p>
+                  <p style={{ margin: 0, fontSize: '14px' }}>
+                    {selectedOrder.medicationName || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ 
+                    margin: '0 0 4px', 
+                    fontSize: '12px', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Status
+                  </p>
+                  <span style={getStatusStyle(selectedOrder.goRushStatus)}>
+                    {selectedOrder.goRushStatus || 'Unknown'}
                   </span>
                 </div>
-              </td>
-              <td style={styles.tableCell}>
-                <span style={styles.trackingNumber}>
-                  {order.doTrackingNumber || 'N/A'}
-                </span>
-              </td>
-              <td style={styles.tableCell}>
                 <div>
-                  <p style={{ margin: 0, fontWeight: '500', fontSize: '14px' }}>
-                    {order.receiverName || 'N/A'}
+                  <p style={{ 
+                    margin: '0 0 4px', 
+                    fontSize: '12px', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Payment Method
                   </p>
-                  {order.dateOfBirth && (
-                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b7280' }}>
-                      DOB: {order.dateOfBirth}
-                    </p>
-                  )}
-                </div>
-              </td>
-              <td style={styles.tableCell}>
-                <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>
-                  {order.patientNumber || 'N/A'}
-                </span>
-              </td>
-              <td style={styles.tableCell}>
-                <div>
-                  <p style={{ margin: 0, fontSize: '13px' }}>
-                    {order.receiverPhoneNumber || 'N/A'}
+                  <p style={{ margin: 0, fontSize: '14px' }}>
+                    {selectedOrder.paymentMethod || 'N/A'} • ${selectedOrder.paymentAmount || '0.00'}
                   </p>
-                  {order.additionalPhoneNumber && (
-                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b7280' }}>
-                      Alt: {order.additionalPhoneNumber}
-                    </p>
-                  )}
                 </div>
-              </td>
-              <td style={styles.tableCell}>
-                {order.paymentMethod || 'N/A'}
-              </td>
-              <td style={styles.tableCell}>
-                {order.jobMethod || 'N/A'}
-              </td>
-              <td style={styles.tableCell}>
-                <span style={{ fontWeight: '600', color: '#059669' }}>
-                  ${order.paymentAmount ? order.paymentAmount : '0.00'}
-                </span>
-              </td>
-              <td style={styles.tableCell}>
-                <span style={getStatusStyle(order.status)}>
-                  {order.status || 'Unknown'}
-                </span>
-              </td>
-              <td style={styles.tableCell}>
-                <button
-                  onClick={() => setSelectedOrder(order)}
-                  style={styles.viewButton}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
-                >
-                  <Eye style={{ width: '14px', height: '14px' }} />
-                  <span>View</span>
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  ) : (
-    <div style={styles.emptyState}>
-      <Package style={styles.emptyIcon} />
-      <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: '600' }}>
-        No orders found
-      </h3>
-      <p style={{ margin: 0, fontSize: '14px' }}>
-        {searchTerm || statusFilter !== 'all' 
-          ? 'Try adjusting your search or filter criteria' 
-          : 'There are no orders placed today'}
-      </p>
-    </div>
-  )}
-</div>
-      </div>
-
-      {/* Order Details Modal */}
-      {/* Order Details Modal */}
-{selectedOrder && (
-  <div style={styles.modalOverlay} onClick={() => setSelectedOrder(null)}>
-    <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-      <div style={styles.modalHeader}>
-        <h2 style={styles.modalTitle}>
-          Order Details - {selectedOrder.doTrackingNumber || 'N/A'}
-        </h2>
-        <button 
-          onClick={() => setSelectedOrder(null)} 
-          style={styles.modalCloseButton}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-        >
-          <X />
-        </button>
-      </div>
-      <div style={styles.modalBody}>
-        <div style={styles.detailsGrid}>
-          {/* Patient Information */}
-          <div style={styles.detailSection}>
-            <h3 style={styles.sectionTitle}>
-              <User style={{ width: '18px', height: '18px' }} />
-              Patient Information
-            </h3>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Patient Name:</span>
-              <span style={styles.detailValue}>{selectedOrder.receiverName || 'N/A'}</span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Patient #:</span>
-              <span style={styles.detailValueMono}>{selectedOrder.patientNumber || 'N/A'}</span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Date of Birth:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.dateOfBirth}
-              </span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>IC Number:</span>
-              <span style={styles.detailValueMono}>{selectedOrder.icPassNum || 'N/A'}</span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Passport:</span>
-              <span style={styles.detailValueMono}>{selectedOrder.passport || 'N/A'}</span>
-            </div>
-<div style={styles.detailRow}>
-  <span style={styles.detailLabel}>Collection Date:</span>
-  <div style={{ display: 'flex', alignItems: 'center' }}>
-    <input
-      type="date"
-      value={selectedOrder.collectionDate ? 
-        new Date(selectedOrder.collectionDate).toISOString().split('T')[0] : ''
-      }
-      onChange={(e) => {
-        const updatedOrder = { ...selectedOrder, collectionDate: e.target.value };
-        setSelectedOrder(updatedOrder);
-      }}
-      style={{ 
-        padding: '6px', 
-        borderRadius: '4px', 
-        border: '1px solid #d1d5db',
-        marginRight: '10px'
-      }}
-    />
-    
-    <button 
-    
-     onClick={async () => {
-  try {
-    const response = await fetch(
-      `http://localhost:5050/api/orders/${selectedOrder._id}/collection-date`,
-      {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          collectionDate: selectedOrder.collectionDate
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to update collection date: ${response.statusText}`);
-    }
-
-    const updatedOrder = await response.json();
-    
-    // Update local state
-    setOrders(orders.map(order => 
-      order._id === updatedOrder._id ? updatedOrder : order
-    ));
-    setSelectedOrder(updatedOrder);
-    
-    // Show success feedback
-    alert('Collection date updated successfully!');
-  } catch (error) {
-    console.error('Error updating collection date:', error);
-    alert(`Error: ${error.message}`);
-  }
-}}
-      onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
-      onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
-    >
-      Save
-    </button>
-    
-  </div>
-</div>
-          </div>
-
-          {/* Contact Information */}
-          <div style={styles.detailSection}>
-            <h3 style={styles.sectionTitle}>
-              <Phone style={{ width: '18px', height: '18px' }} />
-              Contact Information
-            </h3>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Phone:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.receiverPhoneNumber ? (
-                  <a href={`tel:${selectedOrder.receiverPhoneNumber}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Phone style={{ width: '14px', height: '14px' }} />
-                    {selectedOrder.receiverPhoneNumber}
-                  </a>
-                ) : 'N/A'}
-              </span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Additional Phone:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.additionalPhoneNumber || 'N/A'}
-              </span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Address:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.receiverAddress ? (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                    <MapPin style={{ width: '14px', height: '14px', flexShrink: 0, marginTop: '2px' }} />
-                    <span>{selectedOrder.receiverAddress}</span>
-                  </div>
-                ) : 'N/A'}
-              </span>
+              </div>
             </div>
           </div>
 
-          {/* Order Information */}
-          <div style={styles.detailSection}>
-            <h3 style={styles.sectionTitle}>
-              <Package style={{ width: '18px', height: '18px' }} />
-              Order Information
-            </h3>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Tracking #:</span>
-              <span style={styles.detailValueMono}>{selectedOrder.doTrackingNumber || 'N/A'}</span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Created On:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.dateTimeSubmission}
-              </span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Status:</span>
-              <span style={getStatusStyle(selectedOrder.status)}>
-                {selectedOrder.status || 'Unknown'}
-              </span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Payment Method:</span>
-              <span style={styles.detailValue}>{selectedOrder.paymentMethod || 'N/A'}</span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Delivery Type:</span>
-              <span style={styles.detailValue}>{selectedOrder.jobMethod || 'N/A'}</span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Appointment Place:</span>
-              <span style={styles.detailValue}>{selectedOrder.appointmentPlace || 'N/A'}</span>
-            </div>
-          </div>
-
-          {/* Payment Information */}
-          <div style={styles.detailSection}>
-            <h3 style={styles.sectionTitle}>
-              <TrendingUp style={{ width: '18px', height: '18px' }} />
-              Payment Information
-            </h3>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Payment Amount:</span>
-              <span style={{ ...styles.detailValue, fontWeight: '600', color: '#059669' }}>
-                ${selectedOrder.paymentAmount ? selectedOrder.paymentAmount : '0.00'}
-              </span>
-            </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Paying Patient:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.payingPatient ? 'Yes' : 'No'}
-              </span>
-            </div>
-          </div>
-
-          {/* Additional Information */}
-          <div style={{ ...styles.detailSection, gridColumn: '1 / -1' }}>
-            <h3 style={styles.sectionTitle}>
-              <AlertCircle style={{ width: '18px', height: '18px' }} />
-              Additional Information
-            </h3>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Patient Remarks:</span>
-              <span style={styles.detailValue}>
-                {selectedOrder.remarks || 'No remarks'}
-              </span>
-            </div>
-          </div>
-
-          {/* Items Section */}
-          <div style={{ ...styles.detailSection, gridColumn: '1 / -1' }}>
-            <h3 style={styles.sectionTitle}>
-              <Package style={{ width: '18px', height: '18px' }} />
-              Items
-            </h3>
-            {selectedOrder.items ? (
-              Array.isArray(selectedOrder.items) ? (
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {selectedOrder.items.map((item, index) => (
-                    <div key={index} style={{ 
-                      backgroundColor: '#f3f4f6', 
-                      padding: '12px', 
-                      borderRadius: '6px',
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr 1fr',
-                      gap: '12px'
-                    }}>
-                      <div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Name</div>
-                        <div style={{ fontWeight: '500' }}>{item.name || 'N/A'}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Quantity</div>
-                        <div>{item.quantity || '1'}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Price</div>
-                        <div>${item.price ? item.price.toFixed(2) : '0.00'}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ 
-                  backgroundColor: '#f3f4f6', 
-                  padding: '12px', 
-                  borderRadius: '6px',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr 1fr',
-                  gap: '12px'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Name</div>
-                    <div style={{ fontWeight: '500' }}>{selectedOrder.medicationName || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Quantity</div>
-                    <div>1</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Price</div>
-                    <div>${selectedOrder.paymentAmount ? selectedOrder.paymentAmount : '0.00'}</div>
-                  </div>
-                </div>
-              )
-            ) : (
-              <p style={{ margin: 0, color: '#6b7280' }}>No items information available</p>
-            )}
+          {/* Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              style={{
+                padding: '10px 16px',
+                backgroundColor: '#f3f4f6',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+              onClick={() => setSelectedOrder(null)}
+            >
+              Close
+            </button>
+            <button
+              style={{
+                padding: '10px 16px',
+                backgroundColor: '#2563eb',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'background-color 0.2s'
+              }}
+              onClick={() => {
+      navigate(`/orders/${selectedOrder._id}`);
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
+            >
+              <ExternalLink style={{ width: '16px', height: '16px' }} />
+              Open Full Details
+            </button>
           </div>
         </div>
       </div>
     </div>
-  </div>
-)}
-    </div>
-  );
+  )}
+</div>
+);
 };
 
 export default Today;
+

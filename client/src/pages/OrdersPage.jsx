@@ -14,139 +14,12 @@ function OrdersPage() {
   const [endAgingDays, setEndAgingDays] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const navigate = useNavigate();
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [userRole, setUserRole] = useState(null);
+  const [isRoleLoaded, setIsRoleLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const formatDate = (isoString) => {
-  const date = new Date(isoString);
-  return date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric'
-  });
-};
-
-
-  useEffect(() => {
-    fetch('/api/orders') 
-      .then(res => res.json())
-      .then(data => {
-        const processedData = data.map(order => ({
-          ...order,
-          agingDays: order.creationDate ? 
-            Math.floor((new Date() - new Date(order.creationDate)) / (1000 * 60 * 60 * 24)) : null
-        }));
-        setOrders(processedData);
-        setFilteredOrders(processedData);
-      })
-      .catch(err => console.error("Error fetching orders:", err));
-  }, []);
-
-  useEffect(() => {
-    let filtered = [...orders];
-
-    // Search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(order => 
-        (order.doTrackingNumber && order.doTrackingNumber.toLowerCase().includes(search)) ||
-        (order.receiverName && order.receiverName.toLowerCase().includes(search)) ||
-        (order.receiverPhoneNumber && order.receiverPhoneNumber.toLowerCase().includes(search)) ||
-        (order.icPassNum && order.icPassNum.toLowerCase().includes(search)) ||
-        (order.patientNumber && order.patientNumber.toLowerCase().includes(search)) ||
-        (order.receiverAddress && order.receiverAddress.toLowerCase().includes(search))
-      );
-    }
-
-    // Date filter
-    if (qbStartDate && qbEndDate) {
-      filtered = filtered.filter(order => {
-        if (!order.creationDate) return false;
-        const qbDate = new Date(order.creationDate);
-        return qbDate >= qbStartDate && qbDate <= qbEndDate;
-      });
-    }
-
-    // Payment method filter
-    if (selectedPaymentMethod) {
-      filtered = filtered.filter(order => order.paymentMethod === selectedPaymentMethod);
-    }
-
-    // Delivery type filter
-    if (selectedDeliveryType) {
-      filtered = filtered.filter(order => order.jobMethod === selectedDeliveryType);
-    }
-
-    // Aging filter
-    if (startAgingDays !== '' || endAgingDays !== '') {
-      const start = startAgingDays === '' ? 0 : parseInt(startAgingDays);
-      const end = endAgingDays === '' ? Infinity : parseInt(endAgingDays);
-      
-      filtered = filtered.filter(order => {
-        if (order.agingDays === null) return false;
-        return order.agingDays >= start && order.agingDays <= end;
-      });
-    }
-
-    setFilteredOrders(filtered);
-  }, [searchTerm, qbStartDate, qbEndDate, selectedPaymentMethod, selectedDeliveryType, startAgingDays, endAgingDays, orders]);
-
-  const clearFilters = () => {
-    setQbStartDate(null);
-    setQbEndDate(null);
-    setSearchTerm('');
-    setSelectedPaymentMethod('');
-    setSelectedDeliveryType('');
-    setStartAgingDays('');
-    setEndAgingDays('');
-    setFilteredOrders(orders);
-  };
-
-  const getUniqueValues = (field) => {
-    return [...new Set(orders.map(order => order[field]).filter(Boolean))];
-  };
-
-  const calculateAgingStats = () => {
-    const today = new Date();
-    const agingStats = {
-      total: orders.length,
-      withDate: orders.filter(o => o.creationDate).length,
-      overdue: 0,
-      critical: 0
-    };
-
-    orders.forEach(order => {
-      if (!order.creationDate) return;
-      
-      const diffDays = Math.floor((today - new Date(order.creationDate)) / (1000 * 60 * 60 * 24));
-      if (diffDays > 30) agingStats.overdue++;
-      if (diffDays > 60) agingStats.critical++;
-    });
-
-    return agingStats;
-  };
-
-  const agingStats = calculateAgingStats();
-
-  const totalAmount = filteredOrders.reduce((sum, order) => {
-    const amount = parseFloat(order.paymentAmount) || 0;
-    return sum + amount;
-  }, 0);
-
-  const handleTrackingNumberClick = (order) => {
-    if (order.doTrackingNumber && order._id) {
-      navigate(`/orders/${order._id}`);
-    }
-  };
-
-  const getAgingBadgeStyle = (days) => {
-    if (!days && days !== 0) return { backgroundColor: '#f3f4f6', color: '#6b7280' };
-    
-    if (days <= 7) return { backgroundColor: '#dcfce7', color: '#166534' };
-    if (days <= 30) return { backgroundColor: '#fef9c3', color: '#854d0e' };
-    if (days <= 60) return { backgroundColor: '#fee2e2', color: '#991b1b' };
-    return { backgroundColor: '#f3e8ff', color: '#7e22ce' };
-  };
-
-  const styles = {
+   const styles = {
     container: {
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 50%, #f3e8ff 100%)',
@@ -492,7 +365,255 @@ function OrdersPage() {
     }
   };
 
+  const LoadingSpinner = () => (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  }}>
+    <div style={{
+      border: '4px solid #f3f3f3',
+      borderTop: '4px solid #3b82f6',
+      borderRadius: '50%',
+      width: '40px',
+      height: '40px',
+      animation: 'spin 1s linear infinite'
+    }}></div>
+    <style>{`
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `}</style>
+  </div>
+);
+
+  const formatDate = (isoString) => {
+    const date = new Date(isoString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const statusColors = {
+    pending: { bg: '#e0e7ff', text: '#3730a3' },
+    'in progress': { bg: '#fef3c7', text: '#92400e' },
+    ready: { bg: '#dbeafe', text: '#1e40af' },
+    collected: { bg: '#dcfce7', text: '#166534' },
+    completed: { bg: '#dcfce7', text: '#065f46' },
+    cancelled: { bg: '#fee2e2', text: '#991b1b' }
+  };
+
+  const getStatusStyle = (status) => {
+    if (!status) return statusColors.default;
+    
+    const lowerStatus = status.toLowerCase();
+    return statusColors[lowerStatus] || statusColors.default;
+  };
+
+  // Load user role first
+  useEffect(() => {
+    const role = sessionStorage.getItem('userRole');
+    setUserRole(role || 'jpmc'); // Set default if no role found
+    setIsRoleLoaded(true); // Mark role as loaded
+  }, []);
+
+useEffect(() => {
+  if (!isRoleLoaded) return; 
+
+  setIsLoading(true); 
+  fetch('/api/orders', {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Role': userRole || 'jpmc'
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      // First filter based on user role
+      let roleFilteredData = data;
+      if (userRole === 'jpmc') {
+        roleFilteredData = data.filter(order => order.product === 'pharmacyjpmc');
+      } else if (userRole === 'moh') {
+        roleFilteredData = data.filter(order => order.product === 'pharmacymoh');
+      }
+
+      // Then process the data
+      const processedData = roleFilteredData.map(order => {
+        const isCompleted = ['cancelled', 'collected'].includes(order.pharmacyStatus?.toLowerCase());
+        return {
+          ...order,
+          agingDays: !isCompleted && order.creationDate ?
+            Math.floor((new Date() - new Date(order.creationDate)) / (1000 * 60 * 60 * 24)) : null
+        };
+      });
+
+      setOrders(processedData);
+      setFilteredOrders(processedData);
+    })
+    .catch(err => console.error("Error fetching orders:", err))
+    .finally(() => setIsLoading(false)); // Set loading to false when done
+}, [isRoleLoaded, userRole]);
+
+  useEffect(() => {
+    let filtered = [...orders];
+
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(order => 
+        (order.doTrackingNumber && order.doTrackingNumber.toLowerCase().includes(search)) ||
+        (order.receiverName && order.receiverName.toLowerCase().includes(search)) ||
+        (order.receiverPhoneNumber && order.receiverPhoneNumber.toLowerCase().includes(search)) ||
+        (order.icPassNum && order.icPassNum.toLowerCase().includes(search)) ||
+        (order.patientNumber && order.patientNumber.toLowerCase().includes(search)) ||
+        (order.receiverAddress && order.receiverAddress.toLowerCase().includes(search))
+      );
+    }
+
+    // Status filter
+    if (selectedStatus) {
+      filtered = filtered.filter(order => {
+        // Check both pharmacyStatus and goRushStatus (adjust as needed)
+        return order.pharmacyStatus?.toLowerCase() === selectedStatus.toLowerCase() || 
+               order.goRushStatus?.toLowerCase() === selectedStatus.toLowerCase();
+      });
+    }
+
+    // Date filter
+    if (qbStartDate && qbEndDate) {
+      filtered = filtered.filter(order => {
+        if (!order.creationDate) return false;
+        const qbDate = new Date(order.creationDate);
+        return qbDate >= qbStartDate && qbDate <= qbEndDate;
+      });
+    }
+
+    // Payment method filter
+    if (selectedPaymentMethod) {
+      filtered = filtered.filter(order => order.paymentMethod === selectedPaymentMethod);
+    }
+
+    // Delivery type filter
+    if (selectedDeliveryType) {
+      filtered = filtered.filter(order => order.jobMethod === selectedDeliveryType);
+    }
+
+    // Aging filter
+    if (startAgingDays !== '' || endAgingDays !== '') {
+      const start = startAgingDays === '' ? 0 : parseInt(startAgingDays);
+      const end = endAgingDays === '' ? Infinity : parseInt(endAgingDays);
+      
+      filtered = filtered.filter(order => {
+        if (order.agingDays === null) return false;
+        return order.agingDays >= start && order.agingDays <= end;
+      });
+    }
+
+    setFilteredOrders(filtered);
+  }, [searchTerm, qbStartDate, qbEndDate, selectedPaymentMethod, 
+    selectedDeliveryType, startAgingDays, endAgingDays, orders, selectedStatus]);
+
+  const clearFilters = () => {
+    setQbStartDate(null);
+    setQbEndDate(null);
+    setSearchTerm('');
+    setSelectedPaymentMethod('');
+    setSelectedDeliveryType('');
+    setStartAgingDays('');
+    setEndAgingDays('');
+    setSelectedStatus('');
+    setFilteredOrders(orders);
+  };
+
+  const getUniqueValues = (field) => {
+    return [...new Set(orders.map(order => order[field]).filter(Boolean))];
+  };
+
+  const calculateAgingStats = () => {
+    const today = new Date();
+    const agingStats = {
+      total: orders.length,
+      withDate: orders.filter(o => o.creationDate).length,
+      overdue: 0,
+      critical: 0
+    };
+
+    orders.forEach(order => {
+      if (!order.creationDate || ['cancelled', 'collected'].includes(order.pharmacyStatus?.toLowerCase())) return;
+      
+      const diffDays = Math.floor((today - new Date(order.creationDate)) / (1000 * 60 * 60 * 24));
+      if (diffDays > 30) agingStats.overdue++;
+      if (diffDays > 60) agingStats.critical++;
+    });
+
+    return agingStats;
+  };
+
+  const agingStats = calculateAgingStats();
+
+  const totalAmount = filteredOrders.reduce((sum, order) => {
+    const amount = parseFloat(order.paymentAmount) || 0;
+    return sum + amount;
+  }, 0);
+
+  const handleTrackingNumberClick = (order) => {
+    if (order.doTrackingNumber && order._id) {
+      navigate(`/orders/${order._id}`);
+    }
+  };
+
+  const getAgingBadgeStyle = (days) => {
+    if (!days && days !== 0) return { backgroundColor: '#f3f4f6', color: '#6b7280' };
+    if (days === null) return { backgroundColor: '#f3f4f6', color: '#6b7280' };
+    if (days <= 7) return { backgroundColor: '#dcfce7', color: '#166534' };
+    if (days <= 30) return { backgroundColor: '#fef9c3', color: '#854d0e' };
+    if (days <= 60) return { backgroundColor: '#fee2e2', color: '#991b1b' };
+    return { backgroundColor: '#f3e8ff', color: '#7e22ce' };
+  };
+
+  // Show loading state until role is loaded
+  if (!isRoleLoaded) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isRoleLoaded || isLoading) {
   return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div style={{
+        border: '4px solid #f3f3f3',
+        borderTop: '4px solid #3b82f6',
+        borderRadius: '50%',
+        width: '40px',
+        height: '40px',
+        animation: 'spin 1s linear infinite'
+      }}></div>
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+  return (
+    <>
+    {isLoading && <LoadingSpinner />}
     <div style={styles.container}>
       <div style={styles.maxWidthContainer}>
         {/* Header */}
@@ -658,6 +779,34 @@ function OrdersPage() {
 
               <div style={styles.filterGroup}>
                 <label style={styles.filterLabel}>
+                  <AlertCircle style={{ width: '16px', height: '16px' }} />
+                  Status
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  style={styles.filterInput}
+                  onFocus={(e) => {
+                    e.target.style.boxShadow = '0 0 0 2px #6366f1';
+                    e.target.style.borderColor = 'transparent';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.borderColor = '#d1d5db';
+                  }}
+                >
+                  <option value="">All Statuses</option>
+                  {[...new Set([
+                    ...orders.map(o => o.pharmacyStatus).filter(Boolean),
+                    ...orders.map(o => o.goRushStatus).filter(Boolean)
+                  ])].map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.filterGroup}>
+                <label style={styles.filterLabel}>
                   <Clock style={{ width: '16px', height: '16px' }} />
                   Aging Range (Days)
                 </label>
@@ -725,16 +874,6 @@ function OrdersPage() {
             </div>
           </div>
 
-          <div style={styles.statCard2}>
-            <div style={styles.statCardContent}>
-              <div>
-                <p style={styles.statLabel}>With Creation Date</p>
-                <p style={styles.statValue}>{orders.filter(o => o.creationDate).length}</p>
-              </div>
-              <Clock style={{ width: '32px', height: '32px', opacity: 0.7 }} />
-            </div>
-          </div>
-
           <div style={styles.statCard4}>
             <div style={styles.statCardContent}>
               <div>
@@ -776,6 +915,8 @@ function OrdersPage() {
                     <th style={styles.th}>Appointment Place</th>
                     <th style={styles.th}>Paying Patient</th>
                     <th style={styles.th}>Passport</th>
+                    <th style={styles.th}>Go Rush Status</th>
+                    <th style={styles.th}>Pharmacy Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -806,7 +947,7 @@ function OrdersPage() {
                           : <span style={styles.naText}>N/A</span>}
                       </td>
                       <td style={styles.td}>
-                        {order.creationDate ? (
+                        {order.agingDays !== null ? (
                           <span style={{ 
                             ...styles.badge, 
                             ...getAgingBadgeStyle(order.agingDays)
@@ -816,8 +957,8 @@ function OrdersPage() {
                         ) : <span style={styles.naText}>N/A</span>}
                       </td>
                       <td style={{ ...styles.td, ...styles.truncated }}>
-  {order.collectionDate ? formatDate(order.collectionDate) : "N/A"}
-</td>
+                        {order.collectionDate ? formatDate(order.collectionDate) : "N/A"}
+                      </td>
                       <td style={{ ...styles.td, ...styles.truncated }}>
                         {order.receiverName || <span style={styles.naText}>N/A</span>}
                       </td>
@@ -868,12 +1009,43 @@ function OrdersPage() {
                       <td style={styles.td}>
                         {order.passport || <span style={styles.naText}>N/A</span>}
                       </td>
+                      <td style={styles.td}>
+                        {order.goRushStatus ? (
+                          <span style={{ 
+                            ...styles.badge,
+                            backgroundColor: getStatusStyle(order.goRushStatus).bg,
+                            color: getStatusStyle(order.goRushStatus).text,
+                            padding: '4px 8px',
+                            borderRadius: '9999px',
+                            fontSize: '12px',
+                            fontWeight: '500'
+                          }}>
+                            {order.goRushStatus}
+                          </span>
+                        ) : <span style={styles.naText}>N/A</span>}
+                      </td>
+                      <td style={styles.td}>
+                        {order.pharmacyStatus ? (
+                          <span style={{ 
+                            ...styles.badge,
+                            backgroundColor: getStatusStyle(order.pharmacyStatus).bg,
+                            color: getStatusStyle(order.pharmacyStatus).text,
+                            padding: '4px 8px',
+                            borderRadius: '9999px',
+                            fontSize: '12px',
+                            fontWeight: '500'
+                          }}>
+                            {order.pharmacyStatus}
+                          </span>
+                        ) : <span style={styles.naText}>N/A</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
+          
           
           {filteredOrders.length === 0 && (
             <div style={styles.emptyState}>
@@ -885,6 +1057,7 @@ function OrdersPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

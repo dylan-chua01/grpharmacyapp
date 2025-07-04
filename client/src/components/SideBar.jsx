@@ -29,7 +29,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       icon: Home,
       path: '/today',
       badge: null,
-      roles: ['gorush', 'jpmc']
+      roles: ['gorush', 'jpmc', 'moh']
     },
     {
       id: 'customers',
@@ -43,14 +43,14 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       label: 'All Orders',
       icon: Package,
       path: '/orders',
-      roles: ['gorush', 'jpmc']
+      roles: ['gorush', 'jpmc', 'moh']
     },
     {
       id: 'collection',
       label: 'Collection Dates',
       icon: Package,
       path: '/collection',
-      roles: ['gorush', 'jpmc']
+      roles: ['gorush', 'jpmc', 'moh']
     },
   ];
 
@@ -61,7 +61,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       icon: LogOut,
       path: '/logout',
       action: 'logout',
-      roles: ['gorush', 'jpmc']
+      roles: ['gorush', 'jpmc', 'moh']
     }
   ];
 
@@ -77,6 +77,39 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const handleLogout = () => {
     sessionStorage.removeItem('userRole');
     window.location.reload(); // This will trigger the password modal again
+  };
+
+  // Get role display name
+  const getRoleDisplayName = () => {
+    switch(userRole) {
+      case 'jpmc':
+        return 'JPMC Access';
+      case 'moh':
+        return 'MOH Access';
+      default:
+        return 'Go Rush Access';
+    }
+  };
+
+  // Get role styling
+  const getRoleStyle = () => {
+    switch(userRole) {
+      case 'jpmc':
+        return {
+          backgroundColor: '#fef3c7',
+          color: '#92400e'
+        };
+      case 'moh':
+        return {
+          backgroundColor: '#ecfdf5',
+          color: '#065f46'
+        };
+      default:
+        return {
+          backgroundColor: '#dbeafe',
+          color: '#1e40af'
+        };
+    }
   };
 
   return (
@@ -111,7 +144,6 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           className="toggle-btn"
           onClick={() => setIsCollapsed(!isCollapsed)}
           style={{
-            // Ensure the button is always clickable
             minWidth: '40px',
             minHeight: '40px',
             display: 'flex',
@@ -140,14 +172,13 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         <div className="user-role-indicator" style={{
           padding: '0.5rem 1rem',
           margin: '0.5rem',
-          backgroundColor: userRole === 'jpmc' ? '#fef3c7' : '#dbeafe',
           borderRadius: '6px',
           fontSize: '0.75rem',
           fontWeight: '500',
-          color: userRole === 'jpmc' ? '#92400e' : '#1e40af',
-          textAlign: 'center'
+          textAlign: 'center',
+          ...getRoleStyle()
         }}>
-          {userRole === 'jpmc' ? 'JPMC Access' : 'Go Rush Access'}
+          {getRoleDisplayName()}
         </div>
       )}
 
@@ -249,7 +280,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         <div className="sidebar-footer">
           <div className="footer-content">
             <div className="version">v1.0.0</div>
-            <div className="copyright">© 2025 {userRole === 'jpmc' ? 'JPMC' : 'Go Rush'}</div>
+            <div className="copyright">© 2025 {userRole === 'jpmc' ? 'JPMC' : userRole === 'moh' ? 'MOH' : 'Go Rush'}</div>
           </div>
         </div>
       )}
