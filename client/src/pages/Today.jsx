@@ -403,54 +403,51 @@ const fetchTodaysOrders = async () => {
               <Calendar style={{ width: '28px', height: '28px', color: '#2563eb' }} />
               Today's Orders
             </h1>
-            <p style={{ 
-              margin: '4px 0 0', 
-              fontSize: '14px', 
-              color: '#6b7280'
-            }}>
-              {getRoleDisplayName(userRole)} • {new Date().toLocaleDateString()} • Filter: {getProductFilter(userRole)}
-            </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <select 
-              value={userRole || ''} 
-              onChange={(e) => changeRole(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid #d1d5db',
-                backgroundColor: '#f9fafb',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
-            >
-              <option value="jpmc">JPMC</option>
-              <option value="moh">MOH</option>
-              <option value="gorush">Go Rush</option>
-            </select>
-            <button
-              onClick={fetchTodaysOrders}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 16px',
-                backgroundColor: '#2563eb',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
-            >
-              <RefreshCw style={{ width: '16px', height: '16px' }} />
-              Refresh
-            </button>
-          </div>
+  {/* Only show role selector if user is GoRush */}
+  {userRole === 'gorush' && (
+    <select 
+      value={userRole || ''} 
+      onChange={(e) => changeRole(e.target.value)}
+      style={{
+        padding: '8px 12px',
+        borderRadius: '6px',
+        border: '1px solid #d1d5db',
+        backgroundColor: '#f9fafb',
+        fontSize: '14px',
+        fontWeight: '500'
+      }}
+    >
+      <option value="jpmc">JPMC</option>
+      <option value="moh">MOH</option>
+      <option value="gorush">Go Rush</option>
+    </select>
+  )}
+  
+  <button
+    onClick={fetchTodaysOrders}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 16px',
+      backgroundColor: '#2563eb',
+      color: 'white',
+      border: 'none',
+      borderRadius: '6px',
+      fontSize: '14px',
+      fontWeight: '500',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s'
+    }}
+    onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
+    onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
+  >
+    <RefreshCw style={{ width: '16px', height: '16px' }} />
+    Refresh
+  </button>
+</div>
         </div>
       </div>
 
@@ -514,69 +511,6 @@ const fetchTodaysOrders = async () => {
               </div>
               <div style={getStatIconStyle('total')}>
                 <Package style={{ width: '20px', height: '20px', color: '#2563eb' }} />
-              </div>
-            </div>
-          </div>
-
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
-                  Pending
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#eab308' }}>
-                  {statusCounts.pending}
-                </p>
-              </div>
-              <div style={getStatIconStyle('pending')}>
-                <Clock style={{ width: '20px', height: '20px', color: '#eab308' }} />
-              </div>
-            </div>
-          </div>
-
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
-                  Processing
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#2563eb' }}>
-                  {statusCounts.processing}
-                </p>
-              </div>
-              <div style={getStatIconStyle('processing')}>
-                <TrendingUp style={{ width: '20px', height: '20px', color: '#2563eb' }} />
-              </div>
-            </div>
-          </div>
-
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>
-                  Completed
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: '600', color: '#16a34a' }}>
-                  {statusCounts.completed}
-                </p>
-              </div>
-              <div style={getStatIconStyle('completed')}>
-                <Package style={{ width: '20px', height: '20px', color: '#16a34a' }} />
               </div>
             </div>
           </div>
@@ -650,29 +584,6 @@ const fetchTodaysOrders = async () => {
                     }}
                   />
                 </div>
-              </div>
-
-              <div style={{ minWidth: '150px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
-                  Status Filter
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    backgroundColor: 'white'
-                  }}
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="processing">Processing</option>
-                  <option value="completed">Completed</option>
-                </select>
               </div>
             </div>
           )}
@@ -797,7 +708,10 @@ const fetchTodaysOrders = async () => {
                       Payment
                     </th>
                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
-                      Status
+                      Go Rush Status
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Pharmacy Status
                     </th>
                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
                       Actions
@@ -870,6 +784,11 @@ const fetchTodaysOrders = async () => {
                       <td style={{ padding: '12px' }}>
                         <span style={getStatusStyle(order.goRushStatus)}>
                           {order.goRushStatus || 'Unknown'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={getStatusStyle(order.pharmacyStatus)}>
+                          {order.pharmacyStatus || 'Unknown'}
                         </span>
                       </td>
                       <td style={{ padding: '12px' }}>

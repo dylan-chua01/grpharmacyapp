@@ -1,120 +1,136 @@
 import { useState } from 'react';
+import axios from 'axios';
+
+const styles = {
+  overlay: {
+    position: 'fixed',
+    top: 0, left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999
+  },
+  modal: {
+    background: '#fff',
+    padding: '2rem',
+    borderRadius: '10px',
+    minWidth: '350px',
+    maxWidth: '90%',
+    boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
+    textAlign: 'center'
+  },
+  header: {
+    fontSize: '1.5rem',
+    fontWeight: 'bold',
+    marginBottom: '0.5rem'
+  },
+  subtext: {
+    fontSize: '0.9rem',
+    color: '#666',
+    marginBottom: '1.5rem'
+  },
+  input: {
+    width: '100%',
+    padding: '0.75rem',
+    fontSize: '1rem',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    marginBottom: '1rem'
+  },
+  button: {
+    width: '100%',
+    padding: '0.75rem',
+    fontSize: '1rem',
+    backgroundColor: '#2563eb',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'background 0.2s ease'
+  },
+  error: {
+    color: '#dc2626',
+    fontSize: '0.875rem',
+    marginBottom: '1rem'
+  },
+  accessInfo: {
+    marginTop: '1rem',
+    backgroundColor: '#f9fafb',
+    padding: '0.75rem',
+    borderRadius: '6px',
+    fontSize: '0.8rem',
+    color: '#4b5563',
+    textAlign: 'left'
+  }
+};
 
 const PasswordModal = ({ onSuccess }) => {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
 
-    sessionStorage.removeItem('userRole');
+    try {
+      const res = await axios.post('http://localhost:5050/api/auth/login', { username, password });
+      const { role, subrole } = res.data;
 
+      console.log('Login response:', res.data);
+      console.log('Role received:', role, 'Type:', typeof role);
 
-    let role = null;
+      // Ensure we're storing strings, not objects
+      const roleString = typeof role === 'string' ? role.toLowerCase().trim() : String(role).toLowerCase().trim();
+      const subroleString = typeof subrole === 'string' ? subrole.toLowerCase().trim() : String(subrole).toLowerCase().trim();
 
-    // Check password and assign role
-    if (password === 'gorush123') {
-      role = 'gorush';
-    } else if (password === 'jpmc123') {
-      role = 'jpmc';
-    } else if (password === 'moh123') {
-      role = 'moh';
-    } else {
-      setError('Invalid password');
-      return;
-    }
+      console.log('Processing role:', roleString, 'Type:', typeof roleString);
+      console.log('Processing subrole:', subroleString, 'Type:', typeof subroleString);
+      
+      // Store in sessionStorage
+      sessionStorage.setItem('userRole', roleString);
+      sessionStorage.setItem('userSubRole', subroleString);
 
-    // Save role and pass to parent
-    sessionStorage.setItem('userRole', role);
-    console.log('✅ Logged in as role:', role);
-    onSuccess(role);
-  };
+      console.log('Stored in sessionStorage:');
+      console.log('- userRole:', sessionStorage.getItem('userRole'));
+      console.log('- userSubRole:', sessionStorage.getItem('userSubRole'));
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSubmit(e);
+      // Pass just the role string to onSuccess (not an object)
+      onSuccess(roleString);
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err.response?.data?.error || 'Login failed');
     }
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0, left: 0,
-      width: '100vw', height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 9999
-    }}>
-      <div style={{
-        background: '#fff',
-        padding: '2rem',
-        borderRadius: '8px',
-        minWidth: '300px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-      }}>
-        <h2 style={{ marginBottom: '1rem', textAlign: 'center' }}>Access Required</h2>
-        <p style={{ marginBottom: '1rem', color: '#666', fontSize: '0.9rem', textAlign: 'center' }}>
-          Enter your organization password to continue
-        </p>
-        <form onSubmit={handleSubmit}>
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
+        <div style={styles.header}>Welcome</div>
+        <p style={styles.subtext}>Sign in to continue</p>
+        <form onSubmit={handleLogin}>
+          <input
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            style={styles.input}
+          />
           <input
             type="password"
+            placeholder="Password"
             value={password}
-            onChange={e => {
-              setPassword(e.target.value);
-              setError('');
-            }}
-            onKeyPress={handleKeyPress}
-            placeholder="Enter password"
-            style={{ 
-              padding: '0.75rem', 
-              width: '100%', 
-              marginBottom: '1rem',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              fontSize: '1rem'
-            }}
-            autoFocus
+            onChange={e => setPassword(e.target.value)}
+            style={styles.input}
           />
-          {error && (
-            <p style={{ 
-              color: '#dc2626', 
-              marginBottom: '1rem', 
-              fontSize: '0.875rem',
-              textAlign: 'center'
-            }}>
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            style={{ 
-              padding: '0.75rem 1.5rem', 
-              backgroundColor: '#3b82f6', 
-              color: 'white', 
-              borderRadius: '4px',
-              width: '100%',
-              border: 'none',
-              fontSize: '1rem',
-              cursor: 'pointer'
-            }}
-          >
-            Access Application
+          {error && <p style={styles.error}>{error}</p>}
+          <button type="submit" style={styles.button}>
+            Login
           </button>
         </form>
-        <div style={{
-          marginTop: '1rem',
-          padding: '0.75rem',
-          backgroundColor: '#f9fafb',
-          borderRadius: '4px',
-          fontSize: '0.8rem',
-          color: '#6b7280'
-        }}>
-          <strong>Access Levels:</strong><br />
-          • Go Rush: Full system access<br />
-          • JPMC: JPMC Specific Access<br />
-          • MOH: MOH Specific Access
-        </div>
       </div>
     </div>
   );

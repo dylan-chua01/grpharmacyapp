@@ -16,7 +16,9 @@ function OrdersPage() {
   const navigate = useNavigate();
   const [selectedStatus, setSelectedStatus] = useState('');
   const [userRole, setUserRole] = useState(null);
+  const [userSubrole, setUserSubrole] = useState(null);
   const [isRoleLoaded, setIsRoleLoaded] = useState(false);
+  const [productFilter, setProductFilter] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
    const styles = {
@@ -427,6 +429,14 @@ function OrdersPage() {
     setIsRoleLoaded(true); // Mark role as loaded
   }, []);
 
+  useEffect(() => {
+  const role = sessionStorage.getItem('userRole');
+  const subrole = sessionStorage.getItem('userSubrole'); // Add this line
+  setUserRole(role || 'jpmc');
+  setUserSubrole(subrole || null); // Add this line
+  setIsRoleLoaded(true);
+}, []);
+
 useEffect(() => {
   if (!isRoleLoaded) return; 
 
@@ -466,6 +476,10 @@ useEffect(() => {
 
   useEffect(() => {
     let filtered = [...orders];
+
+    if (userRole === 'gorush' && productFilter) {
+      filtered = filtered.filter(order => order.product === productFilter);
+    }
 
     // Search filter
     if (searchTerm) {
@@ -521,7 +535,8 @@ useEffect(() => {
 
     setFilteredOrders(filtered);
   }, [searchTerm, qbStartDate, qbEndDate, selectedPaymentMethod, 
-    selectedDeliveryType, startAgingDays, endAgingDays, orders, selectedStatus]);
+    selectedDeliveryType, startAgingDays, endAgingDays, orders, 
+    selectedStatus, productFilter, userRole]);
 
   const clearFilters = () => {
     setQbStartDate(null);
@@ -803,6 +818,32 @@ useEffect(() => {
                     <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
+
+                {userRole === 'gorush' && (
+          <div style={styles.filterGroup}>
+            <label style={styles.filterLabel}>
+              <Package style={{ width: '16px', height: '16px' }} />
+              Product Filter
+            </label>
+            <select
+              value={productFilter || ''}
+              onChange={(e) => setProductFilter(e.target.value || null)}
+              style={styles.filterInput}
+              onFocus={(e) => {
+                e.target.style.boxShadow = '0 0 0 2px #6366f1';
+                e.target.style.borderColor = 'transparent';
+              }}
+              onBlur={(e) => {
+                e.target.style.boxShadow = 'none';
+                e.target.style.borderColor = '#d1d5db';
+              }}
+            >
+              <option value="">All Products</option>
+              <option value="pharmacymoh">MOH Pharmacy</option>
+              <option value="pharmacyjpmc">JPMC Pharmacy</option>
+            </select>
+          </div>
+        )}
               </div>
 
               <div style={styles.filterGroup}>
@@ -874,6 +915,7 @@ useEffect(() => {
             </div>
           </div>
 
+          {userRole === 'gorush' && userSubrole == 'admin' && (
           <div style={styles.statCard4}>
             <div style={styles.statCardContent}>
               <div>
@@ -883,7 +925,8 @@ useEffect(() => {
               <CreditCard style={{ width: '32px', height: '32px', opacity: 0.7 }} />
             </div>
           </div>
-        </div>
+        )}
+      </div>
 
         {/* Orders Table */}
         <div style={styles.tableCard}>
@@ -936,8 +979,8 @@ useEffect(() => {
                         {order.doTrackingNumber || <span style={styles.naText}>N/A</span>}
                       </td>
                       <td style={styles.td}>
-                        {order.creationDate 
-                          ? new Date(order.creationDate).toLocaleDateString('en-US', {
+                        {order.dateTimeSubmission 
+                          ? new Date(order.dateTimeSubmission).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric',

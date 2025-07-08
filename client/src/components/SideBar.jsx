@@ -7,12 +7,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const location = useLocation();
   const [hoveredItem, setHoveredItem] = useState(null);
   const [userRole, setUserRole] = useState(null);
-
-  useEffect(() => {
-    // Get user role from sessionStorage
-    const role = sessionStorage.getItem('userRole');
-    setUserRole(role);
-  }, []);
+  const [isLoading, setIsLoading] = useState(true);
 
   const allMenuItems = [
     {
@@ -65,17 +60,99 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
     }
   ];
 
-  // Filter menu items based on user role
-  const menuItems = allMenuItems.filter(item => 
-    item.roles.includes(userRole)
-  );
+  useEffect(() => {
+    // Get user role from sessionStorage
+    const role = sessionStorage.getItem('userRole');
+    console.log('Raw role from sessionStorage:', role, typeof role);
+    
+    // Clean and validate the role
+    if (role && role !== 'null' && role !== 'undefined' && role !== '[object Object]') {
+      const cleanRole = role.toLowerCase().trim();
+      console.log('Cleaned role:', cleanRole);
+      
+      // Validate against expected roles
+      const validRoles = ['gorush', 'jpmc', 'moh'];
+      if (validRoles.includes(cleanRole)) {
+        setUserRole(cleanRole);
+      } else {
+        console.warn('Invalid role detected:', cleanRole);
+        // Clear invalid role from storage
+        sessionStorage.removeItem('userRole');
+      }
+    } else {
+      console.warn('No valid role found in sessionStorage');
+    }
+    
+    setIsLoading(false);
+  }, []);
 
-  const filteredBottomMenuItems = bottomMenuItems.filter(item => 
+  // Filter menu items based on user role
+  const menuItems = userRole ? allMenuItems.filter(item => 
     item.roles.includes(userRole)
-  );
+  ) : [];
+
+  const filteredBottomMenuItems = userRole ? bottomMenuItems.filter(item => 
+    item.roles.includes(userRole)
+  ) : [];
+
+  // Debug logs
+  console.log('Current userRole:', userRole);
+  console.log('Filtered menu items count:', menuItems.length);
+  console.log('Menu items:', menuItems.map(item => item.label));
+
+  if (isLoading) {
+    return <div className="sidebar-loading">Loading...</div>;
+  }
+
+  // If no valid role, show minimal sidebar
+  if (!userRole) {
+    return (
+      <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-header">
+          <div className="brand">
+            <img
+              src="/gorushlogo.png"
+              alt="Go Rush Logo"
+              style={{ 
+                height: '40px', 
+                width: 'auto', 
+                objectFit: 'contain', 
+                marginTop: '13px', 
+                marginLeft: isCollapsed ? '8px' : '15px',
+                transition: 'margin-left 0.3s ease'
+              }}
+            />
+          </div>
+          <button 
+            className="toggle-btn"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            style={{
+              minWidth: '40px',
+              minHeight: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              borderRadius: '6px',
+              transition: 'background-color 0.2s ease',
+              marginRight: isCollapsed ? '8px' : '16px'
+            }}
+          >
+            {isCollapsed ? <Menu size={20} /> : <X size={20} />}
+          </button>
+        </div>
+        <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
+          Please log in to access features
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('userSubRole');
     window.location.reload(); // This will trigger the password modal again
   };
 
@@ -86,8 +163,10 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         return 'JPMC Access';
       case 'moh':
         return 'MOH Access';
-      default:
+      case 'gorush':
         return 'Go Rush Access';
+      default:
+        return 'Unknown Access';
     }
   };
 
@@ -104,10 +183,15 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           backgroundColor: '#ecfdf5',
           color: '#065f46'
         };
-      default:
+      case 'gorush':
         return {
           backgroundColor: '#dbeafe',
           color: '#1e40af'
+        };
+      default:
+        return {
+          backgroundColor: '#f3f4f6',
+          color: '#374151'
         };
     }
   };

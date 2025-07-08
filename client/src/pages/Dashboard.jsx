@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom';
 const Dashboard = () => {
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [userRole, setUserRole] = useState(null);
+  const [userSubrole, setUserSubrole] = useState(null);
+  const [isRoleLoaded, setIsRoleLoaded] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -14,20 +17,40 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch data from your API
+  // Load user role first - same pattern as OrdersPage
   useEffect(() => {
-    fetchData();
+    const role = sessionStorage.getItem('userRole');
+    const subrole = sessionStorage.getItem('userSubrole');
+    setUserRole(role || 'jpmc');
+    setUserSubrole(subrole || null);
+    setIsRoleLoaded(true);
   }, []);
+
+  // Fetch data from your API - only after role is loaded
+  useEffect(() => {
+    if (!isRoleLoaded) return;
+    fetchData();
+  }, [isRoleLoaded, userRole]);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
       const [ordersRes, customersRes] = await Promise.all([
-        fetch('http://localhost:5050/api/orders'),
-        fetch('http://localhost:5050/api/customers')
+        fetch('http://localhost:5050/api/orders', {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Role': userRole || 'jpmc'
+          }
+        }),
+        fetch('http://localhost:5050/api/customers', {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Role': userRole || 'jpmc'
+          }
+        })
       ]);
-      
+        
       if (!ordersRes.ok || !customersRes.ok) {
         throw new Error('Failed to fetch data');
       }
@@ -46,13 +69,18 @@ const Dashboard = () => {
   };
 
   const handleTrackingNumberClick = (orderId) => {
-  navigate(`/orders/${orderId}`);
+    navigate(`/orders/${orderId}`);
   };
 
   const fetchCustomerOrders = async (patientNumber) => {
     setLoadingOrders(true);
     try {
-      const response = await fetch(`http://localhost:5050/api/customers/${patientNumber}/orders`);
+      const response = await fetch(`http://localhost:5050/api/customers/${patientNumber}/orders`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Role': userRole || 'jpmc'
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch customer orders');
       }
@@ -88,10 +116,10 @@ const Dashboard = () => {
   // Calculate dashboard metrics
   const totalOrders = orders.length;
   const totalCustomers = customers.length;
-  const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
-const todaysParcels = orders.filter(order => 
-  order.collectionDate && order.collectionDate.split('T')[0] === today
-).length;
+  const today = new Date().toISOString().split('T')[0];
+  const todaysParcels = orders.filter(order => 
+    order.collectionDate && order.collectionDate.split('T')[0] === today
+  ).length;
 
   // Filter customers based on search
   const filteredCustomers = customers.filter(customer =>
@@ -103,462 +131,26 @@ const todaysParcels = orders.filter(order =>
     .sort((a, b) => b.totalOrders - a.totalOrders)
     .slice(0, 5);
 
-  // Inline styles
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      backgroundColor: '#f9fafb',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    },
-    loadingContainer: {
-      minHeight: '100vh',
-      backgroundColor: '#f9fafb',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    loadingContent: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px'
-    },
-    loadingText: {
-      fontSize: '18px',
-      color: '#6b7280'
-    },
-    header: {
-      backgroundColor: 'white',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      borderBottom: '1px solid #e5e7eb'
-    },
-    headerContainer: {
-      maxWidth: '1280px',
-      margin: '0 auto',
-      padding: '0 16px'
-    },
-    headerContent: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '24px 0'
-    },
-    title: {
-      fontSize: '30px',
-      fontWeight: 'bold',
-      color: '#111827',
-      margin: 0
-    },
-    subtitle: {
-      color: '#6b7280',
-      marginTop: '4px',
-      fontSize: '16px'
-    },
-    refreshButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      backgroundColor: '#2563eb',
-      color: 'white',
-      padding: '8px 16px',
-      borderRadius: '8px',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '14px',
-      transition: 'background-color 0.2s'
-    },
-    backButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      backgroundColor: '#6b7280',
-      color: 'white',
-      padding: '8px 16px',
-      borderRadius: '8px',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '14px',
-      transition: 'background-color 0.2s',
-      marginRight: '12px'
-    },
-    mainContainer: {
-      maxWidth: '1280px',
-      margin: '0 auto',
-      padding: '32px 16px'
-    },
-    errorAlert: {
-      backgroundColor: '#fef2f2',
-      border: '1px solid #fecaca',
-      borderRadius: '8px',
-      padding: '16px',
-      marginBottom: '24px'
-    },
-    errorText: {
-      color: '#991b1b'
-    },
-    errorButton: {
-      marginTop: '8px',
-      color: '#dc2626',
-      textDecoration: 'underline',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    metricsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: '24px',
-      marginBottom: '32px'
-    },
-    metricCard: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      padding: '24px',
-      border: '1px solid #f3f4f6'
-    },
-    metricContent: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between'
-    },
-    metricLabel: {
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#6b7280',
-      margin: '0 0 4px 0'
-    },
-    metricValue: {
-      fontSize: '30px',
-      fontWeight: 'bold',
-      margin: 0
-    },
-    metricIcon: {
-      padding: '12px',
-      borderRadius: '8px'
-    },
-    customersGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-      gap: '24px'
-    },
-    customerCard: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f3f4f6'
-    },
-    customerHeader: {
-      padding: '24px',
-      borderBottom: '1px solid #f3f4f6'
-    },
-    customerTitle: {
-      fontSize: '18px',
-      fontWeight: '600',
-      color: '#111827',
-      margin: 0
-    },
-    customerSubtitle: {
-      fontSize: '14px',
-      color: '#6b7280',
-      marginTop: '4px'
-    },
-    searchContainer: {
-      marginTop: '16px',
-      position: 'relative'
-    },
-    searchInput: {
-      width: '80%',
-      paddingLeft: '40px',
-      paddingRight: '16px',
-      paddingTop: '8px',
-      paddingBottom: '8px',
-      border: '1px solid #d1d5db',
-      borderRadius: '8px',
-      fontSize: '14px',
-      outline: 'none'
-    },
-    searchIcon: {
-      position: 'absolute',
-      left: '12px',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      color: '#9ca3af',
-      width: '16px',
-      height: '16px'
-    },
-    customerContent: {
-      padding: '24px'
-    },
-    customerList: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-      maxHeight: '320px',
-      overflowY: 'auto'
-    },
-    customerItem: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '12px',
-      backgroundColor: '#f9fafb',
-      borderRadius: '8px',
-      transition: 'all 0.2s',
-      cursor: 'pointer',
-      border: '1px solid transparent'
-    },
-    customerItemHover: {
-      backgroundColor: '#f3f4f6',
-      borderColor: '#e5e7eb'
-    },
-    customerInfo: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px'
-    },
-    customerRank: {
-      backgroundColor: '#dbeafe',
-      color: '#2563eb',
-      width: '32px',
-      height: '32px',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '14px',
-      fontWeight: '600'
-    },
-    customerName: {
-      fontWeight: '500',
-      color: '#111827',
-      margin: 0
-    },
-    customerNumber: {
-      fontSize: '14px',
-      color: '#6b7280',
-      margin: 0
-    },
-    customerStats: {
-      textAlign: 'right'
-    },
-    customerOrders: {
-      fontWeight: '600',
-      color: '#111827',
-      margin: 0
-    },
-    customerDate: {
-      fontSize: '14px',
-      color: '#6b7280',
-      margin: 0
-    },
-    emptyState: {
-      textAlign: 'center',
-      padding: '32px',
-      color: '#6b7280'
-    },
-    emptyIcon: {
-      width: '48px',
-      height: '48px',
-      margin: '0 auto 16px',
-      opacity: 0.5
-    },
-    // Customer Orders View Styles
-    customerOrdersContainer: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f3f4f6'
-    },
-    customerOrdersHeader: {
-      padding: '24px',
-      borderBottom: '1px solid #f3f4f6',
-      backgroundColor: '#f8fafc'
-    },
-    customerOrdersTitle: {
-      fontSize: '24px',
-      fontWeight: '600',
-      color: '#111827',
-      margin: '0 0 8px 0'
-    },
-    customerOrdersSubtitle: {
-      fontSize: '16px',
-      color: '#6b7280',
-      margin: 0
-    },
-    ordersTable: {
-      width: '100%',
-      borderCollapse: 'collapse'
-    },
-    tableHeader: {
-      backgroundColor: '#f9fafb',
-      borderBottom: '1px solid #f3f4f6'
-    },
-    tableHeaderCell: {
-      padding: '16px',
-      textAlign: 'left',
-      fontSize: '14px',
-      fontWeight: '600',
-      color: '#374151',
-      borderBottom: '1px solid #e5e7eb'
-    },
-    tableRow: {
-      borderBottom: '1px solid #f3f4f6',
-      transition: 'background-color 0.2s'
-    },
-    tableRowHover: {
-      backgroundColor: '#f9fafb'
-    },
-    tableCell: {
-      padding: '16px',
-      fontSize: '14px',
-      color: '#374151',
-      borderBottom: '1px solid #f3f4f6'
-    },
-    statusBadge: {
-      padding: '4px 12px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: '500',
-      textTransform: 'capitalize'
-    },
-    statusCompleted: {
-      backgroundColor: '#dcfce7',
-      color: '#166534'
-    },
-    statusProcessing: {
-      backgroundColor: '#dbeafe',
-      color: '#1e40af'
-    },
-    statusShipped: {
-      backgroundColor: '#e0e7ff',
-      color: '#5b21b6'
-    },
-    trackingNumber: {
-      fontFamily: 'monospace',
-      backgroundColor: '#f3f4f6',
-      padding: '2px 6px',
-      borderRadius: '4px',
-      fontSize: '13px',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      color: '#2563eb',
-      textDecoration: 'underline'
-    },
-    // Modal Styles
-    modalOverlay: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px'
-    },
-    modalContent: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-      maxWidth: '800px',
-      width: '100%',
-      maxHeight: '90vh',
-      overflowY: 'auto'
-    },
-    modalHeader: {
-      padding: '24px',
-      borderBottom: '1px solid #f3f4f6',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      backgroundColor: '#f8fafc'
-    },
-    modalTitle: {
-      fontSize: '24px',
-      fontWeight: '600',
-      color: '#111827',
-      margin: 0
-    },
-    modalCloseButton: {
-      backgroundColor: 'transparent',
-      border: 'none',
-      fontSize: '24px',
-      cursor: 'pointer',
-      color: '#6b7280',
-      padding: '4px',
-      borderRadius: '4px',
-      transition: 'background-color 0.2s'
-    },
-    modalBody: {
-      padding: '24px'
-    },
-    detailsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-      gap: '24px'
-    },
-    detailSection: {
-      backgroundColor: '#f9fafb',
-      padding: '20px',
-      borderRadius: '8px',
-      border: '1px solid #f3f4f6'
-    },
-    sectionTitle: {
-      fontSize: '16px',
-      fontWeight: '600',
-      color: '#111827',
-      marginBottom: '16px',
-      paddingBottom: '8px',
-      borderBottom: '2px solid #e5e7eb'
-    },
-    detailRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: '12px',
-      gap: '12px'
-    },
-    detailLabel: {
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#6b7280',
-      minWidth: '120px',
-      flexShrink: 0
-    },
-    detailValue: {
-      fontSize: '14px',
-      color: '#111827',
-      fontWeight: '400',
-      textAlign: 'right',
-      wordBreak: 'break-word'
-    },
-    detailValueMono: {
-      fontSize: '13px',
-      color: '#111827',
-      fontWeight: '400',
-      textAlign: 'right',
-      fontFamily: 'monospace',
-      backgroundColor: '#f3f4f6',
-      padding: '2px 6px',
-      borderRadius: '4px'
-    },
-    detailValueCurrency: {
-      fontSize: '14px',
-      color: '#059669',
-      fontWeight: '600',
-      textAlign: 'right'
-    }
-  };
-
-  if (loading) {
+  // Show loading state until role is loaded - same pattern as OrdersPage
+  if (!isRoleLoaded || loading) {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.loadingContent}>
-          <RefreshCw style={{ width: '24px', height: '24px', color: '#2563eb' }} />
+          <div style={{
+            border: '4px solid #f3f3f3',
+            borderTop: '4px solid #2563eb',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            animation: 'spin 1s linear infinite'
+          }}></div>
           <span style={styles.loadingText}>Loading dashboard...</span>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
       </div>
     );
@@ -635,13 +227,13 @@ const todaysParcels = orders.filter(order =>
                         onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = 'transparent'}
                       >
                        <td style={styles.tableCell}>
-  <span 
-    style={styles.trackingNumber}
-    onClick={() => handleTrackingNumberClick(order._id)}
-  >
-    {order.doTrackingNumber || 'N/A'}
-  </span>
-</td> 
+                          <span 
+                            style={styles.trackingNumber}
+                            onClick={() => handleTrackingNumberClick(order._id)}
+                          >
+                            {order.doTrackingNumber || 'N/A'}
+                          </span>
+                        </td> 
                         <td style={styles.tableCell}>
                           {order.creationDate}
                         </td>
@@ -740,16 +332,16 @@ const todaysParcels = orders.filter(order =>
           </div>
 
           <div style={styles.metricCard}>
-  <div style={styles.metricContent}>
-    <div>
-      <p style={styles.metricLabel}>Today's Collections</p>
-      <p style={{...styles.metricValue, color: '#2563eb'}}>{todaysParcels}</p>
-    </div>
-    <div style={{...styles.metricIcon, backgroundColor: '#dbeafe'}}>
-      <Calendar style={{ width: '24px', height: '24px', color: '#2563eb' }} />
-    </div>
-  </div>
-</div>
+            <div style={styles.metricContent}>
+              <div>
+                <p style={styles.metricLabel}>Today's Collections</p>
+                <p style={{...styles.metricValue, color: '#2563eb'}}>{todaysParcels}</p>
+              </div>
+              <div style={{...styles.metricIcon, backgroundColor: '#dbeafe'}}>
+                <Calendar style={{ width: '24px', height: '24px', color: '#2563eb' }} />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div style={styles.customersGrid}>
@@ -859,6 +451,325 @@ const todaysParcels = orders.filter(order =>
       </div>
     </div>
   );
+};
+
+// Styles object (you'll need to add this or import it)
+const styles = {
+  container: {
+    minHeight: '100vh',
+    backgroundColor: '#f9fafb',
+    fontFamily: 'system-ui, -apple-system, sans-serif'
+  },
+  loadingContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    backgroundColor: '#f9fafb'
+  },
+  loadingContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '16px'
+  },
+  loadingText: {
+    fontSize: '16px',
+    color: '#6b7280'
+  },
+  header: {
+    backgroundColor: 'white',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    borderBottom: '1px solid #e5e7eb'
+  },
+  headerContainer: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '16px 24px'
+  },
+  headerContent: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  title: {
+    fontSize: '28px',
+    fontWeight: '700',
+    color: '#111827',
+    margin: 0
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#6b7280',
+    margin: '4px 0 0 0'
+  },
+  refreshButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: '#2563eb',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
+    transition: 'all 0.2s'
+  },
+  backButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: '#6b7280',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
+    marginRight: '12px',
+    transition: 'all 0.2s'
+  },
+  mainContainer: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '24px'
+  },
+  errorAlert: {
+    backgroundColor: '#fef2f2',
+    border: '1px solid #fecaca',
+    borderRadius: '8px',
+    padding: '16px',
+    marginBottom: '24px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  errorText: {
+    color: '#dc2626',
+    margin: 0,
+    fontSize: '14px'
+  },
+  errorButton: {
+    padding: '8px 16px',
+    backgroundColor: '#dc2626',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px'
+  },
+  metricsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+    gap: '24px',
+    marginBottom: '32px'
+  },
+  metricCard: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    padding: '24px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e5e7eb'
+  },
+  metricContent: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  metricLabel: {
+    fontSize: '14px',
+    color: '#6b7280',
+    margin: '0 0 8px 0'
+  },
+  metricValue: {
+    fontSize: '32px',
+    fontWeight: '700',
+    margin: 0
+  },
+  metricIcon: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  customersGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+    gap: '24px'
+  },
+  customerCard: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e5e7eb',
+    overflow: 'hidden'
+  },
+  customerHeader: {
+    padding: '24px 24px 16px 24px',
+    borderBottom: '1px solid #f3f4f6'
+  },
+  customerTitle: {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#111827',
+    margin: '0 0 4px 0'
+  },
+  customerSubtitle: {
+    fontSize: '14px',
+    color: '#6b7280',
+    margin: 0
+  },
+  customerContent: {
+    padding: '0'
+  },
+  customerList: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  customerItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 24px',
+    cursor: 'pointer',
+    borderTop: '1px solid transparent',
+    backgroundColor: '#f9fafb',
+    transition: 'all 0.2s'
+  },
+  customerInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  },
+  customerRank: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: '#2563eb',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '12px',
+    fontWeight: '600'
+  },
+  customerName: {
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#111827',
+    margin: '0 0 2px 0'
+  },
+  customerNumber: {
+    fontSize: '12px',
+    color: '#6b7280',
+    margin: 0
+  },
+  customerStats: {
+    textAlign: 'right'
+  },
+  customerOrders: {
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#111827',
+    margin: '0 0 2px 0'
+  },
+  customerDate: {
+    fontSize: '12px',
+    color: '#6b7280',
+    margin: 0
+  },
+  searchContainer: {
+    marginTop: '16px'
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: '16px',
+    height: '16px',
+    color: '#9ca3af'
+  },
+  searchInput: {
+    width: '100%',
+    padding: '8px 8px 8px 36px',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.2s'
+  },
+  customerOrdersContainer: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e5e7eb',
+    overflow: 'hidden'
+  },
+  customerOrdersHeader: {
+    padding: '24px',
+    borderBottom: '1px solid #f3f4f6'
+  },
+  customerOrdersTitle: {
+    fontSize: '20px',
+    fontWeight: '600',
+    color: '#111827',
+    margin: '0 0 8px 0'
+  },
+  customerOrdersSubtitle: {
+    fontSize: '14px',
+    color: '#6b7280',
+    margin: 0
+  },
+  ordersTable: {
+    width: '100%',
+    borderCollapse: 'collapse'
+  },
+  tableHeader: {
+    backgroundColor: '#f9fafb'
+  },
+  tableHeaderCell: {
+    padding: '12px 16px',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'left',
+    borderBottom: '1px solid #e5e7eb'
+  },
+  tableRow: {
+    transition: 'background-color 0.2s'
+  },
+  tableCell: {
+    padding: '12px 16px',
+    fontSize: '14px',
+    color: '#374151',
+    borderBottom: '1px solid #f3f4f6'
+  },
+  trackingNumber: {
+    color: '#2563eb',
+    cursor: 'pointer',
+    fontWeight: '500',
+    textDecoration: 'none'
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '48px 24px',
+    textAlign: 'center'
+  },
+  emptyIcon: {
+    width: '48px',
+    height: '48px',
+    color: '#9ca3af',
+    marginBottom: '16px'
+  }
 };
 
 export default Dashboard;

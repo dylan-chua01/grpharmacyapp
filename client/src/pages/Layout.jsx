@@ -4,6 +4,7 @@ import Sidebar from '../components/SideBar';
 
 const Layout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const userRole = sessionStorage.getItem('userRole');
 
   useEffect(() => {
     const handleResize = () => {
@@ -20,10 +21,7 @@ const Layout = () => {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      <Sidebar 
-        isCollapsed={isCollapsed}
-        setIsCollapsed={setIsCollapsed}
-      />
+      <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} userRole={userRole} />
       <div 
         style={{
           marginLeft: isCollapsed ? '80px' : '280px',

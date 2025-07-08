@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import authRoutes from './routes/auth.js';
 
 dotenv.config();
 
@@ -162,6 +163,8 @@ app.use('/api/orders', (req, res, next) => {
   console.log(`[${new Date().toISOString()}] Role: ${req.userRole}, Path: ${req.path}`);
   next();
 });
+
+app.use('/api/auth', authRoutes);
 
 app.get('/api/orders', async (req, res) => {
   try {
