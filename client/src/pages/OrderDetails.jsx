@@ -5,6 +5,7 @@ import {
   Building, AlertCircle, Shield 
 } from 'lucide-react';
 
+
 const styles = {
   page: {
     minHeight: '100vh',
@@ -200,12 +201,20 @@ const styles = {
   }
 };
 
+// Configuration object - replace with your actual API key
+const config = {
+  DETRACK_API_KEY: '"Ude778d93ebd628e6c942a4c4f359643e9cefc1949b17d433'
+};
+
 const OrderDetails = () => {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
+  const [detrackData, setDetrackData] = useState(null);
+  const [detrackLoading, setDetrackLoading] = useState(false);
+  const [detrackError, setDetrackError] = useState(null);
   
   // Form states
   const [logNote, setLogNote] = useState('');
@@ -252,6 +261,10 @@ const OrderDetails = () => {
         
         const data = await response.json();
         setOrder(data);
+
+         if (data.doTrackingNumber) {
+        fetchDetrackData(data.doTrackingNumber);
+      }
       } catch (err) {
         console.error('Error fetching order:', err);
         setError(err.message);
@@ -262,6 +275,53 @@ const OrderDetails = () => {
 
     fetchOrder();
   }, [id]);
+
+  const formatMilestoneStatus = (status) => {
+  const statusMap = {
+    'info_recv': 'Information Received',
+    'dispatched': 'Dispatched',
+    'at_warehouse': 'At Warehouse',
+    'out_for_delivery': 'Out for Delivery',
+    'delivered': 'Delivered',
+    'failed': 'Delivery Failed',
+    'cancelled': 'Cancelled'
+  };
+  
+  return statusMap[status] || status;
+};
+
+const fetchDetrackData = async (trackingNumber) => {
+  if (!trackingNumber) return;
+  
+  setDetrackLoading(true);
+  setDetrackError(null);
+  
+  try {
+    const response = await fetch(`/api/detrack/${trackingNumber}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to fetch DeTrack data' }));
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const apiResponse = await response.json();
+    
+    // Handle the nested data structure
+    const data = apiResponse.data || apiResponse;
+    setDetrackData(data);
+    
+  } catch (err) {
+    console.error('Error fetching DeTrack data:', err);
+    setDetrackError(err.message);
+  } finally {
+    setDetrackLoading(false);
+  }
+};
 
   const handleStatusUpdate = async (statusType, newStatus) => {
     try {
@@ -408,35 +468,31 @@ const OrderDetails = () => {
         
         <div style={styles.statusContainer}>
           {/* Go Rush Status Card */}
-          <div style={styles.statusCard}>
-            <div style={styles.statusHeader}>
-              <Package style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-              Go Rush Status
-            </div>
-            <div style={{
-              ...styles.statusBadge,
-              backgroundColor: statusColors[order.goRushStatus?.toLowerCase()]?.bg || '#f3f4f6',
-              color: statusColors[order.goRushStatus?.toLowerCase()]?.text || '#6b7280'
-            }}>
-              {order.goRushStatus || 'pending'}
-            </div>
-            {(userRole === 'gorush' || userRole === 'go-rush') && (
-              <>
-                <select
-                  value={order.goRushStatus || 'pending'}
-                  onChange={(e) => handleStatusUpdate('goRush', e.target.value)}
-                  style={styles.statusSelect}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in progress">In Progress</option>
-                  <option value="ready">Ready</option>
-                  <option value="collected">Collected</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </>
-            )}
-          </div>
+          {(userRole === 'gorush' || userRole === 'go-rush') && (
+  <div style={styles.statusCard}>
+    <div style={styles.statusHeader}>
+      <Package style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+      Go Rush Status
+    </div>
+    <div style={{
+      ...styles.statusBadge,
+      backgroundColor: statusColors[order.goRushStatus?.toLowerCase()]?.bg || '#f3f4f6',
+      color: statusColors[order.goRushStatus?.toLowerCase()]?.text || '#6b7280'
+    }}>
+      {order.goRushStatus || 'pending'}
+    </div>
+    <select
+      value={order.goRushStatus || 'pending'}
+      onChange={(e) => handleStatusUpdate('goRush', e.target.value)}
+      style={styles.statusSelect}
+    >
+      <option value="pending">Pending</option>
+      <option value="collected">Collected</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+)}
+
 
           {/* Pharmacy Status Card */}
           <div style={styles.statusCard}>
@@ -486,7 +542,7 @@ const OrderDetails = () => {
               </div>
               <div style={styles.row}>
                 <span style={styles.label}>Created On:</span>
-                <span style={styles.value}>{new Date(order.creationDate).toLocaleString()}</span>
+                <span style={styles.value}>{new Date(order.dateTimeSubmission).toLocaleString()}</span>
               </div>
               <div style={styles.row}>
                 <span style={styles.label}>Payment Method:</span>
@@ -587,85 +643,171 @@ const OrderDetails = () => {
           </div>
         )}
 
-        {/* Go Rush Internal Logs Section - Show for both roles but only allow Go Rush to add */}
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>
-            <Shield style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem', color: '#3b82f6' }} /> 
-            Go Rush Internal Logs
-          </h2>
-          
-          {(userRole === 'gorush' || userRole === 'go-rush') ? (
-            <>
-              <div style={styles.notice}>
-                <AlertCircle style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-                <strong>Go Rush Staff Only:</strong> Internal tracking and communication
-              </div>
+        {detrackLoading && (
+  <div style={styles.card}>
+    <p>Loading delivery status...</p>
+  </div>
+)}
 
-              <div style={styles.inputGroup}>
-                <input
-                  value={logCreatedBy}
-                  onChange={(e) => setLogCreatedBy(e.target.value)}
-                  placeholder="Your name"
-                  style={styles.input}
-                  aria-label="Log creator name"
-                />
-                <select
-                  value={logCategory}
-                  onChange={(e) => setLogCategory(e.target.value)}
-                  style={styles.select}
-                  aria-label="Log category"
-                >
-                  <option value="">Select Category</option>
-                  <option value="Delivery Issue">Delivery Issue</option>
-                  <option value="Payment Query">Payment Query</option>
-                  <option value="Customer Feedback">Customer Feedback</option>
-                  <option value="Status Update">Status Update</option>
-                  <option value="Other">Other</option>
-                </select>
-                <input
-                  value={logNote}
-                  onChange={(e) => setLogNote(e.target.value)}
-                  placeholder="Enter internal note"
-                  style={styles.input}
-                  aria-label="Log note"
-                />
-                <button
-                  onClick={handleAddLog}
-                  style={{ ...styles.button, ...styles.buttonPrimary }}
-                >
-                  Add Log
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ ...styles.notice, backgroundColor: '#f3f4f6', borderColor: '#9ca3af', color: '#374151' }}>
-              <AlertCircle style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-              <strong>View Only:</strong> Internal logs from Go Rush staff
-            </div>
-          )}
+{detrackError && (
+  <div style={{ ...styles.card, color: '#dc2626' }}>
+    <p>Error loading delivery status: {detrackError}</p>
+  </div>
+)}
 
-          {order.logs?.length > 0 ? (
-            <div style={{ marginTop: '1rem' }}>
-              {order.logs.map((log, idx) => (
-                <div key={idx} style={styles.logEntry}>
-                  <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
-                    {new Date(log.createdAt).toLocaleString()} by <strong>{log.createdBy}</strong>
-                  </div>
-                  <div style={{ fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
-                    {log.category}
-                  </div>
-                  <div style={{ color: '#4b5563' }}>
-                    {log.note}
-                  </div>
+{userRole === 'gorush' && detrackData && (
+  <div style={styles.card}>
+    <h2 style={styles.cardTitle}>
+      <MapPin style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem', color: '#3b82f6' }} /> 
+      Delivery Status
+    </h2>
+
+    <div style={{ marginTop: '1rem' }}>
+      <div style={styles.row}>
+        <span style={styles.label}>Tracking Status:</span>
+        <span style={styles.value}>{detrackData.tracking_status || 'N/A'}</span>
+      </div>
+      <div style={styles.row}>
+        <span style={styles.label}>Tracking Link:</span>
+        <span style={styles.value}>
+          {detrackData.tracking_link ? (
+            <a href={detrackData.tracking_link} target="_blank" rel="noopener noreferrer">
+              Track Package
+            </a>
+          ) : 'N/A'}
+        </span>
+      </div>
+      <div style={styles.row}>
+        <span style={styles.label}>Assigned To:</span>
+        <span style={styles.value}>{detrackData.assign_to || 'Unassigned'}</span>
+      </div>
+      <div style={styles.row}>
+        <span style={styles.label}>POD:</span>
+        <span style={styles.value}>
+          {detrackData.photo_1_file_url ? (
+            <a href={detrackData.photo_1_file_url} target="_blank" rel="noopener noreferrer">
+              View POD
+            </a>
+          ) : 'N/A'}
+        </span>
+      </div>
+    </div>
+
+    <h3 style={{ margin: '1.5rem 0 0.5rem', fontSize: '1rem', fontWeight: '600' }}>
+      Delivery Milestones
+    </h3>
+
+    {detrackData.milestones && detrackData.milestones.length > 0 ? (
+      <div style={{ marginTop: '0.5rem' }}>
+        {detrackData.milestones.map((milestone, idx) => (
+          <div key={idx} style={{ 
+            padding: '0.75rem',
+            marginBottom: '0.5rem',
+            backgroundColor: '#f8fafc',
+            borderRadius: '0.375rem',
+            borderLeft: '4px solid #3b82f6'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
+                  {formatMilestoneStatus(milestone.status)}
                 </div>
-              ))}
+                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  {milestone.reason || 'No reason provided'}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  {milestone.user_name || 'System'}
+                </div>
+                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  {milestone.pod_at ? new Date(milestone.pod_at).toLocaleString() : 'N/A'}
+                </div>
+              </div>
             </div>
-          ) : (
-            <p style={{ color: '#6b7280', textAlign: 'center', fontStyle: 'italic' }}>
-              No internal logs yet
-            </p>
-          )}
-        </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
+        No milestones available
+      </p>
+    )}
+  </div>
+)}
+
+
+      {(userRole === 'gorush' || userRole === 'go-rush') && (
+  <div style={styles.card}>
+    <h2 style={styles.cardTitle}>
+      <Shield style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem', color: '#3b82f6' }} /> 
+      Go Rush Internal Logs
+    </h2>
+    
+    <div style={styles.notice}>
+      <AlertCircle style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+      <strong>Go Rush Staff Only:</strong> Internal tracking and communication
+    </div>
+
+    <div style={styles.inputGroup}>
+      <input
+        value={logCreatedBy}
+        onChange={(e) => setLogCreatedBy(e.target.value)}
+        placeholder="Your name"
+        style={styles.input}
+        aria-label="Log creator name"
+      />
+      <select
+        value={logCategory}
+        onChange={(e) => setLogCategory(e.target.value)}
+        style={styles.select}
+        aria-label="Log category"
+      >
+        <option value="">Select Category</option>
+        <option value="Delivery Issue">Delivery Issue</option>
+        <option value="Payment Query">Payment Query</option>
+        <option value="Customer Feedback">Customer Feedback</option>
+        <option value="Status Update">Status Update</option>
+        <option value="Other">Other</option>
+      </select>
+      <input
+        value={logNote}
+        onChange={(e) => setLogNote(e.target.value)}
+        placeholder="Enter internal note"
+        style={styles.input}
+        aria-label="Log note"
+      />
+      <button
+        onClick={handleAddLog}
+        style={{ ...styles.button, ...styles.buttonPrimary }}
+      >
+        Add Log
+      </button>
+    </div>
+
+    {order.logs?.length > 0 ? (
+      <div style={{ marginTop: '1rem' }}>
+        {order.logs.map((log, idx) => (
+          <div key={idx} style={styles.logEntry}>
+            <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+              {new Date(log.createdAt).toLocaleString()} by <strong>{log.createdBy}</strong>
+            </div>
+            <div style={{ fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
+              {log.category}
+            </div>
+            <div style={{ color: '#4b5563' }}>
+              {log.note}
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p style={{ color: '#6b7280', textAlign: 'center', fontStyle: 'italic' }}>
+        No internal logs yet
+      </p>
+    )}
+  </div>
+)}
 
         {/* Pharmacy Remarks Section - Show for both roles but only allow JPMC/MOH to add */}
         <div style={styles.card}>

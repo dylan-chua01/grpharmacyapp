@@ -353,8 +353,7 @@ const handleUpdateStatus = async (orderId, statusType, status) => {
     disabled={userRole !== 'jpmc' && userRole !== 'moh'}
   >
     <option value="pending">Pending</option>
-    <option value="ready">Ready</option>
-    <option value="collected">Collected</option>
+    <option value="ready-collect">Ready to be Collected</option>
     <option value="cancelled">Cancelled</option>
   </select>
   {userRole !== 'jpmc' && userRole !== 'moh' && (

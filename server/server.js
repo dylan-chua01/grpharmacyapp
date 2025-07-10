@@ -51,6 +51,13 @@ pharmacyStatus: { type: String, default: 'pending' } // Status for Pharmacy team
 }, { collection: 'orders', strict: false });
 const Order = mongoose.model('Order', orderSchema);
 
+const getDateFilter = () => {
+  return {
+    creationDate: {
+      $gte: '2025-01-01'
+    }
+  };
+};
 
 function getProductFilter(userRole) {
   const role = (userRole || '').toLowerCase().trim();
@@ -86,7 +93,6 @@ function getProductFilter(userRole) {
 
   return {};
 }
-
 
 function canAccessOrder(userRole, order) {
   const role = (userRole || '').toLowerCase().trim();
@@ -128,25 +134,24 @@ function canUpdateOrder(userRole, order, updateType) {
   return false;
 }
 
+// Updated to use date filter instead of limits
 function getQueryOptions(userRole) {
   const role = (userRole || '').toLowerCase().trim();
   
-  // MOH: last 2000 orders
-  if (role === 'moh') return { 
-    limit: 2000,
-    sort: { creationDate: -1 } 
-  };
-  
-  // Go Rush: last 6000 orders
-  if (role === 'gorush' || role === 'go-rush') return {
-    limit: 6000,
+  // All roles now use the same date-based filter
+  return {
     sort: { creationDate: -1 }
   };
+}
+
+// Helper function to combine all filters
+function getCombinedFilter(userRole) {
+  const productFilter = getProductFilter(userRole);
+  const dateFilter = getDateFilter();
   
-  // JPMC: no limit
-  if (role === 'jpmc') return { 
-    limit: 2000,
-    sort: { creationDate: -1 } 
+  return {
+    ...productFilter,
+    ...dateFilter
   };
 }
 
@@ -168,15 +173,14 @@ app.use('/api/auth', authRoutes);
 
 app.get('/api/orders', async (req, res) => {
   try {
-    const productFilter = getProductFilter(req.userRole);
+    const combinedFilter = getCombinedFilter(req.userRole);
     const queryOptions = getQueryOptions(req.userRole);
 
     console.log(`🏷️ User role: ${req.userRole}`);
-    console.log(`🔍 Product filter:`, productFilter);
+    console.log(`🔍 Combined filter:`, combinedFilter);
 
-    let query = Order.find(productFilter)
-      .sort(queryOptions.sort || {})
-      .limit(queryOptions.limit || 0);
+    let query = Order.find(combinedFilter)
+      .sort(queryOptions.sort || {});
 
     const orders = await query;
     res.json(orders);
@@ -188,22 +192,11 @@ app.get('/api/orders', async (req, res) => {
 
 app.get('/api/customers', async (req, res) => {
   try {
-    const productFilter = getProductFilter(req.userRole);
-    const queryOptions = getQueryOptions(req.userRole);
+    const combinedFilter = getCombinedFilter(req.userRole);
     
     let aggregationPipeline = [
-      { $match: productFilter }
-    ];
-    
-    // For MOH users, limit the orders before grouping
-    if (queryOptions.limit) {
-      aggregationPipeline.push(
-        { $sort: { creationDate: -1 } },
-        { $limit: queryOptions.limit }
-      );
-    }
-    
-    aggregationPipeline.push(
+      { $match: combinedFilter },
+      { $sort: { creationDate: -1 } },
       { 
         $group: {
           _id: {
@@ -226,7 +219,7 @@ app.get('/api/customers', async (req, res) => {
         }
       },
       { $sort: { receiverName: 1 } }
-    );
+    ];
     
     const customers = await Order.aggregate(aggregationPipeline);
     
@@ -239,18 +232,12 @@ app.get('/api/customers', async (req, res) => {
 app.get('/api/customers/:patientNumber/orders', async (req, res) => {
   try {
     const { patientNumber } = req.params;
-    const productFilter = getProductFilter(req.userRole);
-    const queryOptions = getQueryOptions(req.userRole);
+    const combinedFilter = getCombinedFilter(req.userRole);
     
     let query = Order.find({ 
-      ...productFilter,
+      ...combinedFilter,
       patientNumber: patientNumber 
     }).sort({ creationDate: -1 });
-    
-    // Apply limit for MOH users
-    if (queryOptions.limit) {
-      query = query.limit(queryOptions.limit);
-    }
     
     const orders = await query;
     
@@ -318,27 +305,16 @@ app.put('/api/orders/:id/collection-date', async (req, res) => {
 
 app.get('/api/collection-dates', async (req, res) => {
   try {
-    const productFilter = getProductFilter(req.userRole);
-    const queryOptions = getQueryOptions(req.userRole);
+    const combinedFilter = getCombinedFilter(req.userRole);
     
     const matchCondition = {
       collectionDate: { $exists: true, $ne: null },
-      ...productFilter
+      ...combinedFilter
     };
     
     let aggregationPipeline = [
-      { $match: matchCondition }
-    ];
-    
-    // For MOH users, limit the orders before grouping
-    if (queryOptions.limit) {
-      aggregationPipeline.push(
-        { $sort: { creationDate: -1 } },
-        { $limit: queryOptions.limit }
-      );
-    }
-    
-    aggregationPipeline.push(
+      { $match: matchCondition },
+      { $sort: { creationDate: -1 } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$collectionDate" } },
@@ -354,7 +330,7 @@ app.get('/api/collection-dates', async (req, res) => {
         }
       },
       { $sort: { date: 1 } }
-    );
+    ];
     
     const dates = await Order.aggregate(aggregationPipeline);
     
@@ -378,21 +354,15 @@ app.get('/api/orders/collection-dates', async (req, res) => {
     const endDate = new Date(date);
     endDate.setDate(endDate.getDate() + 1);
     
-    const productFilter = getProductFilter(req.userRole);
-    const queryOptions = getQueryOptions(req.userRole);
+    const combinedFilter = getCombinedFilter(req.userRole);
     
     let query = Order.find({
       collectionDate: {
         $gte: startDate,
         $lt: endDate
       },
-      ...productFilter
+      ...combinedFilter
     }).sort({ collectionDate: 1 });
-    
-    // Apply limit for MOH users
-    if (queryOptions.limit) {
-      query = query.limit(queryOptions.limit);
-    }
 
     const orders = await query;
 
@@ -428,6 +398,40 @@ app.get('/api/orders/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching order:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/detrack/:trackingNumber', async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    
+    if (!trackingNumber) {
+      return res.status(400).json({ error: 'Tracking number is required' });
+    }
+
+    const response = await fetch(`https://app.detrack.com/api/v2/dn/jobs/show/?do_number=${trackingNumber}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': process.env.DETRACK_API_KEY || 'Ude778d93ebd628e6c942a4c4f359643e9cefc1949b17d433'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('DeTrack API error:', response.status, errorText);
+      throw new Error(`DeTrack API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    res.json(data);
+    
+  } catch (error) {
+    console.error('Error fetching DeTrack data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch DeTrack data',
+      details: error.message 
+    });
   }
 });
 
