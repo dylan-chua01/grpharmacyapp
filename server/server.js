@@ -161,6 +161,10 @@ function extractUserRole(req, res, next) {
   next();
 }
 
+app.get('/', (req, res) => {
+  res.send('GR Pharmacy Backend is running ✅');
+});
+
 // Apply user role middleware to all routes
 app.use('/api', extractUserRole);
 
