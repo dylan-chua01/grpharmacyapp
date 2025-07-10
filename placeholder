@@ -1,387 +1,345 @@
-  // Styles
-  const styles = {
+ const styles = {
     container: {
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '20px',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 50%, #f3e8ff 100%)',
+      padding: '24px'
     },
-    title: {
-      fontSize: '24px',
-      marginBottom: '20px',
-      color: '#111827',
-      fontWeight: '600'
+    maxWidthContainer: {
+      maxWidth: '1280px',
+      margin: '0 auto'
     },
-    selectPrompt: {
-      textAlign: 'center',
-      padding: '40px 20px',
-      background: 'white',
-      borderRadius: '10px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-      marginBottom: '20px'
+    headerCard: {
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+      padding: '24px',
+      marginBottom: '24px',
+      border: '1px solid #f3f4f6'
     },
-    promptText: {
-      fontSize: '18px',
-      color: '#666',
-      marginBottom: '20px'
-    },
-    dateSelector: {
+    headerFlex: {
       display: 'flex',
-      gap: '10px',
-      marginBottom: '20px',
-      overflowX: 'auto',
-      paddingBottom: '10px',
-      flexWrap: 'wrap'
-    },
-    dateButton: {
-      display: 'flex',
-      flexDirection: 'column',
       alignItems: 'center',
-      padding: '15px 20px',
-      borderRadius: '8px',
-      background: '#f5f5f5',
-      border: 'none',
-      cursor: 'pointer',
-      minWidth: '120px',
-      transition: 'all 0.2s'
-    },
-    activeDateButton: {
-      background: '#3b82f6',
-      color: 'white'
-    },
-    noDateButton: {
-      background: '#fbbf24',
-      color: 'white'
-    },
-    dateLabel: {
-      fontWeight: '500',
-      marginBottom: '5px'
-    },
-    orderCount: {
-      fontSize: '12px',
-      opacity: '0.8'
-    },
-    ordersContainer: {
-      background: 'white',
-      borderRadius: '10px',
-      padding: '20px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-    },
-    dateTitle: {
-      fontSize: '20px',
-      marginBottom: '20px',
-      color: '#111827'
-    },
-    ordersList: {
-      display: 'grid',
-      gap: '15px'
-    },
-    orderCard: {
-      border: '1px solid #e5e7eb',
-      borderRadius: '8px',
-      padding: '15px',
-      transition: 'all 0.2s'
-    },
-    orderCardHover: {
-      borderColor: '#3b82f6'
-    },
-    orderHeader: {
-      display: 'flex',
       justifyContent: 'space-between',
-      marginBottom: '10px'
-    },
-    orderTime: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      fontSize: '14px',
-      color: '#666'
-    },
-    statusBadge: {
-      padding: '4px 10px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: '500',
-      textTransform: 'capitalize'
-    },
-    statusPending: {
-      background: '#fef3c7',
-      color: '#92400e'
-    },
-    statusReady: {
-      background: '#dbeafe',
-      color: '#1e40af'
-    },
-    statusCollected: {
-      background: '#dcfce7',
-      color: '#166534'
-    },
-    statusCancelled: {
-      background: '#fee2e2',
-      color: '#991b1b'
-    },
-    orderDetails: {
-      marginBottom: '10px'
-    },
-    customerInfo: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      marginBottom: '5px',
-      fontSize: '14px'
-    },
-    patientNumber: {
-      background: '#f3f4f6',
-      padding: '2px 6px',
-      borderRadius: '4px',
-      fontFamily: 'monospace'
-    },
-    orderFooter: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       flexWrap: 'wrap',
-      gap: '10px'
+      gap: '16px'
     },
-    trackingNumber: {
+    headerLeft: {
       display: 'flex',
       alignItems: 'center',
-      gap: '5px',
-      fontFamily: 'monospace',
-      background: '#f3f4f6',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '13px'
+      gap: '12px'
     },
-    actions: {
-      display: 'flex',
-      gap: '10px',
-      flexWrap: 'wrap'
+    iconContainer: {
+      padding: '12px',
+      background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)',
+      borderRadius: '12px'
     },
-    statusSelect: {
-      padding: '6px 10px',
-      borderRadius: '4px',
-      border: '1px solid #d1d5db',
-      background: 'white',
-      cursor: 'pointer'
-    },
-    viewButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      background: '#3b82f6',
-      color: 'white',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    editButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      background: '#10b981',
-      color: 'white',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    deleteButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      background: '#ef4444',
-      color: 'white',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    saveButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      background: '#059669',
-      color: 'white',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    cancelButton: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      background: '#6b7280',
-      color: 'white',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '14px'
-    },
-    dateInput: {
-      padding: '6px 10px',
-      borderRadius: '4px',
-      border: '1px solid #d1d5db',
-      background: 'white',
-      fontSize: '14px',
-      minWidth: '150px'
-    },
-    editSection: {
-      background: '#f9fafb',
-      padding: '10px',
-      borderRadius: '6px',
-      marginTop: '10px',
-      border: '1px solid #e5e7eb'
-    },
-    editActions: {
-      display: 'flex',
-      gap: '8px',
-      marginTop: '10px'
-    },
-    confirmDialog: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1001
-    },
-    confirmContent: {
-      background: 'white',
-      borderRadius: '10px',
-      padding: '25px',
-      maxWidth: '400px',
-      width: '90%',
-      textAlign: 'center'
-    },
-    confirmTitle: {
-      fontSize: '18px',
-      fontWeight: '600',
+    headerTitle: {
+      fontSize: '2rem',
+      fontWeight: 'bold',
       color: '#111827',
-      marginBottom: '15px'
+      margin: 0
     },
-    confirmText: {
+    headerSubtitle: {
+      color: '#6b7280',
+      marginTop: '4px',
+      fontSize: '1rem'
+    },
+    filterToggle: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 16px',
+      backgroundColor: '#e0e7ff',
+      color: '#4338ca',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
       fontSize: '14px',
-      color: '#666',
-      marginBottom: '20px'
+      fontWeight: '500',
+      transition: 'background-color 0.2s'
     },
-    confirmActions: {
-      display: 'flex',
-      gap: '10px',
-      justifyContent: 'center'
+    searchCard: {
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+      padding: '24px',
+      marginBottom: '24px',
+      border: '1px solid #f3f4f6'
     },
-    loading: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '200px',
-      fontSize: '16px',
-      color: '#666'
-    },
-    error: {
-      color: '#dc2626',
-      padding: '20px',
-      textAlign: 'center'
-    },
-    popup: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000
-    },
-    popupContent: {
-      background: 'white',
-      borderRadius: '10px',
-      padding: '30px',
-      maxWidth: '600px',
-      width: '90%',
-      maxHeight: '80vh',
-      overflowY: 'auto',
+    searchContainer: {
       position: 'relative'
     },
-    popupHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '20px'
+    searchInput: {
+      width: '80%',
+      paddingLeft: '48px',
+      paddingRight: '1px',
+      paddingTop: '16px',
+      paddingBottom: '16px',
+      fontSize: '1.125rem',
+      border: '1px solid #e5e7eb',
+      borderRadius: '12px',
+      outline: 'none',
+      transition: 'all 0.2s'
     },
-    popupTitle: {
-      fontSize: '24px',
-      fontWeight: '600',
-      color: '#111827'
+    searchIcon: {
+      position: 'absolute',
+      left: '16px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: '#9ca3af'
     },
-    closeButton: {
+    clearSearchBtn: {
+      position: 'absolute',
+      right: '16px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: '#9ca3af',
       background: 'none',
       border: 'none',
       cursor: 'pointer',
-      padding: '5px',
-      borderRadius: '4px',
-      color: '#666'
+      padding: '4px'
     },
-    popupSection: {
-      marginBottom: '20px'
+    filtersCard: {
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+      padding: '24px',
+      marginBottom: '24px',
+      border: '1px solid #f3f4f6'
     },
-    sectionTitle: {
-      fontSize: '16px',
-      fontWeight: '600',
-      color: '#374151',
-      marginBottom: '10px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px'
-    },
-    infoGrid: {
+    filtersGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: '15px'
+      gap: '24px'
     },
-    infoItem: {
+    filterGroup: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '2px'
+      gap: '8px'
     },
-    infoLabel: {
-      fontSize: '12px',
-      color: '#666',
-      fontWeight: '500',
-      textTransform: 'uppercase',
-      letterSpacing: '0.5px'
-    },
-    infoValue: {
-      fontSize: '14px',
-      color: '#111827',
-      fontWeight: '400'
-    },
-    groupedSection: {
-      background: '#f9fafb',
-      padding: '15px',
-      borderRadius: '8px',
-      marginBottom: '20px'
-    },
-    groupTitle: {
-      fontSize: '18px',
-      fontWeight: '600',
-      color: '#374151',
-      marginBottom: '15px',
+    filterLabel: {
       display: 'flex',
       alignItems: 'center',
+      fontSize: '14px',
+      fontWeight: '500',
+      color: '#374151',
       gap: '8px'
+    },
+    filterInput: {
+      width: '100%',
+      padding: '8px 12px',
+      border: '1px solid #d1d5db',
+      borderRadius: '8px',
+      fontSize: '14px',
+      outline: 'none',
+      transition: 'all 0.2s'
+    },
+    agingRangeContainer: {
+      display: 'flex',
+      gap: '12px',
+      alignItems: 'center'
+    },
+    agingInput: {
+      flex: 1,
+      padding: '8px 12px',
+      border: '1px solid #d1d5db',
+      borderRadius: '8px',
+      fontSize: '14px',
+      outline: 'none',
+      transition: 'all 0.2s'
+    },
+    clearFiltersContainer: {
+      marginTop: '16px',
+      display: 'flex',
+      justifyContent: 'flex-end'
+    },
+    clearFiltersBtn: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 24px',
+      backgroundColor: '#ef4444',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '500',
+      transition: 'background-color 0.2s'
+    },
+    statsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: '24px',
+      marginBottom: '24px'
+    },
+    statCard1: {
+      background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+      borderRadius: '12px',
+      padding: '24px',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    statCard2: {
+      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      borderRadius: '12px',
+      padding: '24px',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    statCard3: {
+      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+      borderRadius: '12px',
+      padding: '24px',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    statCard4: {
+      background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+      borderRadius: '12px',
+      padding: '24px',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    statCard5: {
+      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      borderRadius: '12px',
+      padding: '24px',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    statCard6: {
+      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+      borderRadius: '12px',
+      padding: '24px',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    statCardContent: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    },
+    statLabel: {
+      fontSize: '14px',
+      opacity: 0.8,
+      marginBottom: '4px'
+    },
+    statValue: {
+      fontSize: '2rem',
+      fontWeight: 'bold',
+      margin: 0
+    },
+    tableCard: {
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+      border: '1px solid #f3f4f6',
+      overflow: 'hidden'
+    },
+    tableHeader: {
+      padding: '24px',
+      borderBottom: '1px solid #e5e7eb'
+    },
+    tableTitle: {
+      fontSize: '1.25rem',
+      fontWeight: '600',
+      color: '#111827',
+      margin: 0
+    },
+    tableSubtitle: {
+      color: '#6b7280',
+      marginTop: '4px',
+      fontSize: '14px'
+    },
+    tableContainer: {
+      overflowX: 'auto'
+    },
+    tableScrollContainer: {
+      maxHeight: '400px',
+      overflowY: 'auto'
+    },
+    table: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    },
+    tableHead: {
+      backgroundColor: '#f9fafb',
+      position: 'sticky',
+      top: 0,
+      zIndex: 10
+    },
+    th: {
+      padding: '16px 24px',
+      textAlign: 'left',
+      fontSize: '12px',
+      fontWeight: '500',
+      color: '#6b7280',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      whiteSpace: 'nowrap'
+    },
+    td: {
+      padding: '16px 24px',
+      fontSize: '14px',
+      color: '#374151',
+      borderBottom: '1px solid #f3f4f6'
+    },
+    evenRow: {
+      backgroundColor: 'white'
+    },
+    oddRow: {
+      backgroundColor: '#f9fafb'
+    },
+    trackingNumber: {
+      fontWeight: '500',
+      color: '#111827'
+    },
+    badge: {
+      padding: '4px 8px',
+      fontSize: '12px',
+      fontWeight: '500',
+      borderRadius: '9999px'
+    },
+    paymentBadge: {
+      backgroundColor: '#dbeafe',
+      color: '#1e40af'
+    },
+    deliveryBadge: {
+      backgroundColor: '#dcfce7',
+      color: '#166534'
+    },
+    amount: {
+      fontWeight: '500',
+      color: '#111827'
+    },
+    truncated: {
+      maxWidth: '200px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    },
+    naText: {
+      color: '#9ca3af'
+    },
+    emptyState: {
+      textAlign: 'center',
+      padding: '48px 24px'
+    },
+    emptyIcon: {
+      width: '48px',
+      height: '48px',
+      color: '#9ca3af',
+      margin: '0 auto 16px'
+    },
+    emptyTitle: {
+      color: '#6b7280',
+      fontSize: '1.125rem',
+      margin: '0 0 4px 0'
+    },
+    emptySubtitle: {
+      color: '#9ca3af',
+      fontSize: '14px',
+      margin: 0
     }
   };

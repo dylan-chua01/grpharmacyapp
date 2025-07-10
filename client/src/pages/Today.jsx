@@ -11,15 +11,15 @@ import {
   Eye,
   X,
   ChevronDown,
-  TrendingUp,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-
 const Today = () => {
   const [orders, setOrders] = useState([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempSelectedDate, setTempSelectedDate] = useState(new Date());
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,9 +32,123 @@ const Today = () => {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [isAllSelected, setIsAllSelected] = useState(false);
   const [bulkCollectionDate, setBulkCollectionDate] = useState('');
+  const [currentDate, setCurrentDate] = useState(new Date());
   const navigate = useNavigate();
 
-  // Role management - FIXED to use sessionStorage consistently
+  // Format date for display
+  const formatDate = (date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(date);
+  };
+
+  const handleDateSelect = (date) => {
+  setCurrentDate(new Date(date));
+  setShowDatePicker(false);
+};
+
+const openDatePicker = () => {
+  setTempSelectedDate(currentDate);
+  setShowDatePicker(true);
+};
+  
+
+  // Navigation between dates
+  const navigateToPreviousDay = () => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() - 1);
+    setCurrentDate(newDate);
+  };
+
+  const navigateToNextDay = () => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + 1);
+    setCurrentDate(newDate);
+  };
+
+  const navigateToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(filteredOrders.map(order => order._id));
+    }
+    setIsAllSelected(!isAllSelected);
+  };
+
+  const handleBulkCollectionDateUpdate = async () => {
+    if (!bulkCollectionDate) {
+      alert('Please select a collection date');
+      return;
+    }
+
+    try {
+      const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
+      const promises = selectedOrders.map(orderId => 
+        fetch(`http://localhost:5050/api/orders/${orderId}/collection-date`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-User-Role': currentRole
+          },
+          body: JSON.stringify({ collectionDate: bulkCollectionDate })
+        })
+      );
+
+      const responses = await Promise.all(promises);
+      const results = await Promise.all(responses.map(res => res.json()));
+
+      setOrders(orders.map(order => {
+        const updatedOrder = results.find(r => r._id === order._id);
+        return updatedOrder ? updatedOrder : order;
+      }));
+
+      setSelectedOrders([]);
+      setIsAllSelected(false);
+      setBulkCollectionDate('');
+      
+      alert(`Successfully updated ${results.length} orders!`);
+    } catch (error) {
+      console.error('Error updating bulk collection dates:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const toggleOrderSelection = (orderId) => {
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  useEffect(() => {
+    setSelectedOrders([]);
+    setIsAllSelected(false);
+  }, [orders]);
+
+  // Initialize role on component mount
+  useEffect(() => {
+    getUserRole();
+  }, []);
+
+  // Fetch orders when role or date changes
+  useEffect(() => {
+    if (roleInitialized && userRole) {
+      fetchOrdersForDate();
+    }
+  }, [userRole, roleInitialized, currentDate]);
+
+  useEffect(() => {
+    filterOrders();
+  }, [orders, searchTerm, statusFilter]);
+
   const getUserRole = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roleFromUrl = urlParams.get('role');
@@ -43,10 +157,8 @@ const Today = () => {
     
     if (roleFromUrl) {
       currentRole = roleFromUrl.toLowerCase();
-      // CHANGED: Use sessionStorage instead of localStorage
       sessionStorage.setItem('userRole', currentRole);
     } else {
-      // CHANGED: Use sessionStorage instead of localStorage
       const roleFromStorage = sessionStorage.getItem('userRole');
       if (roleFromStorage) {
         currentRole = roleFromStorage.toLowerCase();
@@ -58,163 +170,71 @@ const Today = () => {
     return currentRole;
   };
 
-  const toggleSelectAll = () => {
-  if (isAllSelected) {
-    setSelectedOrders([]);
-  } else {
-    setSelectedOrders(filteredOrders.map(order => order._id));
-  }
-  setIsAllSelected(!isAllSelected);
-};
-
-
-const handleBulkCollectionDateUpdate = async () => {
-  if (!bulkCollectionDate) {
-    alert('Please select a collection date');
-    return;
-  }
-
-  try {
-    const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
-    const promises = selectedOrders.map(orderId => 
-      fetch(`http://localhost:5050/api/orders/${orderId}/collection-date`, {
-        method: 'PUT',
-        headers: { 
+  const fetchOrdersForDate = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
+      
+      const response = await fetch('http://localhost:5050/api/orders', {
+        headers: {
           'Content-Type': 'application/json',
           'X-User-Role': currentRole
-        },
-        body: JSON.stringify({ collectionDate: bulkCollectionDate })
-      })
-    );
-
-    const responses = await Promise.all(promises);
-    const results = await Promise.all(responses.map(res => res.json()));
-
-    // Update local state
-    setOrders(orders.map(order => {
-      const updatedOrder = results.find(r => r._id === order._id);
-      return updatedOrder ? updatedOrder : order;
-    }));
-
-    // Reset selection
-    setSelectedOrders([]);
-    setIsAllSelected(false);
-    setBulkCollectionDate('');
-    
-    alert(`Successfully updated ${results.length} orders!`);
-  } catch (error) {
-    console.error('Error updating bulk collection dates:', error);
-    alert(`Error: ${error.message}`);
-  }
-};
-
-
-  const toggleOrderSelection = (orderId) => {
-  setSelectedOrders(prev => 
-    prev.includes(orderId) 
-      ? prev.filter(id => id !== orderId)
-      : [...prev, orderId]
-  );
-};
-
-useEffect(() => {
-  // Reset selection when orders change
-  setSelectedOrders([]);
-  setIsAllSelected(false);
-}, [orders]);
-
-
-  // Initialize role on component mount
-  useEffect(() => {
-    getUserRole();
-  }, []);
-
-  // Fetch orders when role changes
-  useEffect(() => {
-    if (roleInitialized && userRole) {
-      fetchTodaysOrders();
-    }
-  }, [userRole, roleInitialized]);
-
-  useEffect(() => {
-    filterOrders();
-  }, [orders, searchTerm, statusFilter]);
-
-
-const fetchTodaysOrders = async () => {
-  setLoading(true);
-  setError(null);
-  
-  try {
-    const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
-    console.log('Fetching orders as:', currentRole); // Debug log
-    
-    const response = await fetch('http://localhost:5050/api/orders', {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-Role': currentRole
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch orders: ${response.statusText}`);
-    }
-    
-    const allOrders = await response.json();
-    console.log('Received orders:', allOrders)
-    
-    // Filter orders for today with more robust date handling
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const todaysOrders = allOrders.filter(order => {
-      try {
-        const dateField = order.creationDate || order.dateTimeSubmission;
-        if (!dateField) return false;
-        
-        let orderDate;
-        if (typeof dateField === 'string') {
-          // Handle ISO strings
-          if (dateField.includes('T')) {
-            orderDate = new Date(dateField);
-          } 
-          // Handle date strings like "MM/DD/YYYY"
-          else if (dateField.includes('/')) {
-            const parts = dateField.split('/');
-            if (parts.length === 3) {
-              orderDate = new Date(parts[2], parts[0] - 1, parts[1]);
-            } else {
-              return false;
-            }
-          }
-          // Handle other formats
-          else {
-            orderDate = new Date(dateField);
-          }
-        } 
-        // Handle Date objects
-        else if (dateField instanceof Date) {
-          orderDate = dateField;
         }
-        
-        if (!orderDate || isNaN(orderDate.getTime())) return false;
-        
-        orderDate.setHours(0, 0, 0, 0);
-        return orderDate.getTime() === today.getTime();
-      } catch (error) {
-        console.warn('Could not parse date:', dateField, error);
-        return false;
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch orders: ${response.statusText}`);
       }
-    });
-    
-    setOrders(todaysOrders);
-  } catch (err) {
-    setError(err.message);
-    console.error('Full error:', err);
-  } finally {
-    setLoading(false);
-  }
-};
+      
+      const allOrders = await response.json();
+      
+      // Filter orders for the selected date
+      const selectedDate = new Date(currentDate);
+      selectedDate.setHours(0, 0, 0, 0);
+      
+      const filteredOrders = allOrders.filter(order => {
+        try {
+          const dateField = order.creationDate || order.dateTimeSubmission;
+          if (!dateField) return false;
+          
+          let orderDate;
+          if (typeof dateField === 'string') {
+            if (dateField.includes('T')) {
+              orderDate = new Date(dateField);
+            } else if (dateField.includes('/')) {
+              const parts = dateField.split('/');
+              if (parts.length === 3) {
+                orderDate = new Date(parts[2], parts[0] - 1, parts[1]);
+              } else {
+                return false;
+              }
+            } else {
+              orderDate = new Date(dateField);
+            }
+          } else if (dateField instanceof Date) {
+            orderDate = dateField;
+          }
+          
+          if (!orderDate || isNaN(orderDate.getTime())) return false;
+          
+          orderDate.setHours(0, 0, 0, 0);
+          return orderDate.getTime() === selectedDate.getTime();
+        } catch (error) {
+          console.warn('Could not parse date:', dateField, error);
+          return false;
+        }
+      });
+      
+      setOrders(filteredOrders);
+    } catch (err) {
+      setError(err.message);
+      console.error('Full error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filterOrders = () => {
     let filtered = [...orders];
@@ -257,7 +277,6 @@ const fetchTodaysOrders = async () => {
 
   const updateCollectionDate = async (orderId, collectionDate) => {
     try {
-      // FIXED: Ensure userRole is available and add fallback
       const currentRole = userRole || sessionStorage.getItem('userRole') || 'jpmc';
       
       const response = await fetch(
@@ -266,7 +285,7 @@ const fetchTodaysOrders = async () => {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
-            'X-User-Role': currentRole // FIXED: Use currentRole with fallback
+            'X-User-Role': currentRole
           },
           body: JSON.stringify({ collectionDate })
         }
@@ -291,7 +310,6 @@ const fetchTodaysOrders = async () => {
   };
 
   const changeRole = (newRole) => {
-    // CHANGED: Use sessionStorage instead of localStorage
     sessionStorage.setItem('userRole', newRole);
     setUserRole(newRole);
     setRoleInitialized(true);
@@ -315,6 +333,27 @@ const fetchTodaysOrders = async () => {
         return { ...baseStyle, backgroundColor: '#fef3c7', color: '#a16207' };
       case 'processing':
         return { ...baseStyle, backgroundColor: '#dbeafe', color: '#1d4ed8' };
+      default:
+        return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#6b7280' };
+    }
+  };
+
+  const getDeliveryTypeStyle = (type) => {
+    const baseStyle = {
+      padding: '4px 8px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: '500',
+      textTransform: 'capitalize'
+    };
+
+    switch (type?.toLowerCase()) {
+      case 'standard':
+        return { ...baseStyle, backgroundColor: '#e0f2fe', color: '#0369a1' };
+      case 'express':
+        return { ...baseStyle, backgroundColor: '#fef9c3', color: '#ca8a04' };
+      case 'immediate':
+        return { ...baseStyle, backgroundColor: '#fee2e2', color: '#b91c1c' };
       default:
         return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#6b7280' };
     }
@@ -344,24 +383,6 @@ const fetchTodaysOrders = async () => {
     }
   };
 
-  const getRoleDisplayName = (role) => {
-    switch (role?.toLowerCase()) {
-      case 'moh': return 'MOH (Ministry of Health)';
-      case 'jpmc': return 'JPMC (Jerudong Park Medical Centre)';
-      case 'gorush': return 'Go Rush (All Products)';
-      default: return role?.toUpperCase() || 'Unknown';
-    }
-  };
-
-  const getProductFilter = (role) => {
-    switch (role?.toLowerCase()) {
-      case 'moh': return 'pharmacymoh';
-      case 'jpmc': return 'pharmacyjpmc';
-      case 'gorush': return 'all products';
-      default: return 'unknown';
-    }
-  };
-
   if (loading || !roleInitialized) {
     return (
       <div style={{ padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
@@ -374,7 +395,7 @@ const fetchTodaysOrders = async () => {
           gap: '16px'
         }}>
           <RefreshCw style={{ width: '32px', height: '32px', color: '#2563eb', animation: 'spin 1s linear infinite' }} />
-          <span style={{ fontSize: '16px', color: '#6b7280' }}>Loading today's orders...</span>
+          <span style={{ fontSize: '16px', color: '#6b7280' }}>Loading orders...</span>
         </div>
       </div>
     );
@@ -383,73 +404,78 @@ const fetchTodaysOrders = async () => {
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
       {/* Header */}
-      <div style={{ 
-        backgroundColor: 'white', 
-        borderBottom: '1px solid #e2e8f0', 
-        padding: '16px 24px',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+<div style={{ 
+  backgroundColor: 'white', 
+  borderBottom: '1px solid #e2e8f0', 
+  padding: '16px 24px',
+  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+}}>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div>
+      <h1 style={{ 
+        margin: 0, 
+        fontSize: '24px', 
+        fontWeight: '600', 
+        color: '#1f2937',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ 
-              margin: 0, 
-              fontSize: '24px', 
-              fontWeight: '600', 
-              color: '#1f2937',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <Calendar style={{ width: '28px', height: '28px', color: '#2563eb' }} />
-              Today's Orders
-            </h1>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-  {/* Only show role selector if user is GoRush */}
-  {userRole === 'gorush' && (
-    <select 
-      value={userRole || ''} 
-      onChange={(e) => changeRole(e.target.value)}
-      style={{
-        padding: '8px 12px',
-        borderRadius: '6px',
-        border: '1px solid #d1d5db',
-        backgroundColor: '#f9fafb',
-        fontSize: '14px',
-        fontWeight: '500'
-      }}
-    >
-      <option value="jpmc">JPMC</option>
-      <option value="moh">MOH</option>
-      <option value="gorush">Go Rush</option>
-    </select>
-  )}
-  
-  <button
-    onClick={fetchTodaysOrders}
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      padding: '8px 16px',
-      backgroundColor: '#2563eb',
-      color: 'white',
-      border: 'none',
-      borderRadius: '6px',
-      fontSize: '14px',
-      fontWeight: '500',
-      cursor: 'pointer',
-      transition: 'background-color 0.2s'
-    }}
-    onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
-    onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
-  >
-    <RefreshCw style={{ width: '16px', height: '16px' }} />
-    Refresh
-  </button>
+        <Calendar style={{ width: '28px', height: '28px', color: '#2563eb' }} />
+        <span 
+          onClick={openDatePicker}
+          style={{ 
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            textUnderlineOffset: '4px',
+            ':hover': { color: '#2563eb' }
+          }}
+        >
+          Orders for {formatDate(currentDate)}
+        </span>
+      </h1>
+    </div>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+      <button
+        onClick={navigateToToday}
+        style={{
+          padding: '8px 16px',
+          backgroundColor: '#f3f4f6',
+          border: 'none',
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: '500',
+          cursor: 'pointer'
+        }}
+      >
+        Today
+      </button>
+      
+      <button
+        onClick={fetchOrdersForDate}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          backgroundColor: '#2563eb',
+          color: 'white',
+          border: 'none',
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: '500',
+          cursor: 'pointer',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
+      >
+        <RefreshCw style={{ width: '16px', height: '16px' }} />
+        Refresh
+      </button>
+    </div>
+  </div>
 </div>
-        </div>
-      </div>
 
       <div style={{ padding: '24px' }}>
         {error && (
@@ -469,7 +495,7 @@ const fetchTodaysOrders = async () => {
                 Failed to load orders: {error}
               </p>
               <button 
-                onClick={fetchTodaysOrders}
+                onClick={fetchOrdersForDate}
                 style={{
                   marginTop: '8px',
                   padding: '6px 12px',
@@ -590,76 +616,75 @@ const fetchTodaysOrders = async () => {
         </div>
 
         {selectedOrders.length > 0 && (
-  <div style={{
-    backgroundColor: '#e0f2fe',
-    padding: '12px 24px',
-    marginBottom: '16px',
-    borderRadius: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontWeight: '500' }}>
-        {selectedOrders.length} order{selectedOrders.length !== 1 ? 's' : ''} selected
-      </span>
-    </div>
-    
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-      <div>
-        <label style={{ marginRight: '8px', fontSize: '14px' }}>Collection Date:</label>
-        <input
-          type="date"
-          value={bulkCollectionDate}
-          onChange={(e) => setBulkCollectionDate(e.target.value)}
-          style={{
-            padding: '8px',
-            border: '1px solid #d1d5db',
-            borderRadius: '4px'
-          }}
-        />
-      </div>
-      
-      <button
-        onClick={handleBulkCollectionDateUpdate}
-        style={{
-          padding: '8px 16px',
-          backgroundColor: '#2563eb',
-          color: 'white',
-          border: 'none',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontWeight: '500',
-          transition: 'background-color 0.2s'
-        }}
-        onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
-        onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
-      >
-        Apply to Selected
-      </button>
-      
-      <button
-        onClick={() => {
-          setSelectedOrders([]);
-          setIsAllSelected(false);
-        }}
-        style={{
-          padding: '8px 16px',
-          backgroundColor: 'transparent',
-          border: '1px solid #d1d5db',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          transition: 'background-color 0.2s'
-        }}
-        onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-      >
-        Cancel
-      </button>
-    </div>
-  </div>
-)}
-
+          <div style={{
+            backgroundColor: '#e0f2fe',
+            padding: '12px 24px',
+            marginBottom: '16px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontWeight: '500' }}>
+                {selectedOrders.length} order{selectedOrders.length !== 1 ? 's' : ''} selected
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div>
+                <label style={{ marginRight: '8px', fontSize: '14px' }}>Collection Date:</label>
+                <input
+                  type="date"
+                  value={bulkCollectionDate}
+                  onChange={(e) => setBulkCollectionDate(e.target.value)}
+                  style={{
+                    padding: '8px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              
+              <button
+                onClick={handleBulkCollectionDateUpdate}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
+              >
+                Apply to Selected
+              </button>
+              
+              <button
+                onClick={() => {
+                  setSelectedOrders([]);
+                  setIsAllSelected(false);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: 'transparent',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Orders Table */}
         <div style={{
@@ -706,6 +731,15 @@ const fetchTodaysOrders = async () => {
                     </th>
                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
                       Payment
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Type
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Product
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                      Collection Date
                     </th>
                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
                       Go Rush Status
@@ -781,6 +815,28 @@ const fetchTodaysOrders = async () => {
                           </p>
                         </div>
                       </td>
+                       <td style={{ padding: '12px' }}>
+                          <span style={getDeliveryTypeStyle(order.jobMethod)}>
+                            {order.jobMethod || 'N/A'}
+                          </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                          <p style={{ margin: 0, fontSize: '13px' }}>
+                            {order.product || 'N/A'}
+                          </p>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+  <p style={{ margin: 0, fontSize: '13px' }}>
+    {order.collectionDate
+      ? new Intl.DateTimeFormat('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }).format(new Date(order.collectionDate))
+      : 'Not Yet Set'}
+  </p>
+</td>
+
                       <td style={{ padding: '12px' }}>
                         <span style={getStatusStyle(order.goRushStatus)}>
                           {order.goRushStatus || 'Unknown'}
@@ -1072,10 +1128,23 @@ const fetchTodaysOrders = async () => {
                     color: '#6b7280',
                     fontWeight: '500'
                   }}>
-                    Status
+                    Go Rush Status
                   </p>
                   <span style={getStatusStyle(selectedOrder.goRushStatus)}>
                     {selectedOrder.goRushStatus || 'Unknown'}
+                  </span>
+                </div>
+                <div>
+                  <p style={{ 
+                    margin: '0 0 4px', 
+                    fontSize: '12px', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Pharmacy Status
+                  </p>
+                  <span style={getStatusStyle(selectedOrder.pharmacyStatus)}>
+                    {selectedOrder.pharmacyStatus || 'Unknown'}
                   </span>
                 </div>
                 <div>
@@ -1089,6 +1158,19 @@ const fetchTodaysOrders = async () => {
                   </p>
                   <p style={{ margin: 0, fontSize: '14px' }}>
                     {selectedOrder.paymentMethod || 'N/A'} • ${selectedOrder.paymentAmount || '0.00'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ 
+                    margin: '0 0 4px', 
+                    fontSize: '12px', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Delivery Type
+                  </p>
+                  <p style={{ margin: 0, fontSize: '14px' }}>
+                    {selectedOrder.jobMethod || 'N/A'}
                   </p>
                 </div>
               </div>
@@ -1146,6 +1228,68 @@ const fetchTodaysOrders = async () => {
       </div>
     </div>
   )}
+  {showDatePicker && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000
+  }} onClick={() => setShowDatePicker(false)}>
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      padding: '20px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+    }} onClick={(e) => e.stopPropagation()}>
+      <h3 style={{ marginTop: 0 }}>Select a date</h3>
+      <input
+        type="date"
+        value={tempSelectedDate.toISOString().split('T')[0]}
+        onChange={(e) => setTempSelectedDate(new Date(e.target.value))}
+        style={{
+          padding: '8px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          fontSize: '16px',
+          marginBottom: '16px'
+        }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <button
+          onClick={() => setShowDatePicker(false)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#f3f4f6',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => handleDateSelect(tempSelectedDate)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Select Date
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 </div>
 );
 };
